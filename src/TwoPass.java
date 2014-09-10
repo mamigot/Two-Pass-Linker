@@ -68,10 +68,10 @@ public class TwoPass {
 	// Incremented as more modules are processed
 	int memoryAddressCounter = 0;
 	/**
-	 * Last visited item. Since an instruction such as "R 1002" is processed in
-	 * two iterations, this global variable is meant to hold the reference to
-	 * the item whose information is being gathered; could be an instruction or
-	 * a definition.
+	 * Last-visited item. Since an instruction such as "R 1002" is processed in
+	 * two iterations ("R" and "1002"), this global variable is meant to hold
+	 * the reference to the item whose information is being gathered; could be
+	 * an instruction or a definition.
 	 */
 	Object incompleteItem;
 
@@ -166,12 +166,12 @@ public class TwoPass {
 	 */
 	private void processInstructionElement(String element) {
 
-		if ( !this.isInteger(element) ) {
-			System.out.println("inst chara:" + element);
+		if (this.isInteger(element)) {
+			System.out.println("inst addre:" + element);
 
 		} else {
-			System.out.println("inst addre:" + element);
-			
+			System.out.println("inst chara:" + element);
+
 		}
 
 	}
