@@ -12,20 +12,20 @@ public class TwoPass {
 
 	enum Data {
 		DEFINITIONS, USES, INSTRUCTIONS;
-		
-		static Data current;
-		
-		public static Data getFirst(){
+
+		static Data current = getFirst();
+
+		public static Data getFirst() {
 			return current = Data.DEFINITIONS;
 		}
-		
-		public static Data getNext(){
-			if(current == Data.DEFINITIONS)
+
+		public static Data getNext() {
+			if (current == Data.DEFINITIONS)
 				return current = Data.USES;
-			
-			else if(current == Data.USES)
+
+			else if (current == Data.USES)
 				return current = Data.INSTRUCTIONS;
-			
+
 			else
 				return current = Data.DEFINITIONS;
 		}
@@ -67,6 +67,13 @@ public class TwoPass {
 	ArrayList<Symbol> symbols = new ArrayList<Symbol>();
 	// Incremented as more modules are processed
 	int memoryAddressCounter = 0;
+	/**
+	 * Last visited item. Since an instruction such as "R 1002" is processed in
+	 * two iterations, this global variable is meant to hold the reference to
+	 * the item whose information is being gathered; could be an instruction or
+	 * a definition.
+	 */
+	Object incompleteItem;
 
 	public TwoPass(String inputFilePath) throws FileNotFoundException {
 		// Save all of the content into a variable
@@ -75,8 +82,7 @@ public class TwoPass {
 		// Identifies the tokens using RegEx
 		Matcher matcher = Pattern.compile("[\\d\\w]+").matcher(content);
 
-		// Type that will be visited next
-		// (order is: definitions, uses, instructions)
+		// Type that will be visited first
 		Data nextType = Data.getFirst();
 
 		int remainingDefinitions = 0;
@@ -122,7 +128,7 @@ public class TwoPass {
 			else {
 				// Check whatever nextType is and update that value
 				int numNewElements = Integer.parseInt(token);
-				if(numNewElements == 0)
+				if (numNewElements == 0)
 					nextType = Data.getNext();
 
 				if (nextType == Data.DEFINITIONS)
@@ -152,7 +158,7 @@ public class TwoPass {
 	private void processUseSymbol(String element) {
 
 		System.out.println("use symbol:" + element);
-		
+
 	}
 
 	/**
@@ -160,21 +166,22 @@ public class TwoPass {
 	 */
 	private void processInstructionElement(String element) {
 
-		if( this.isInteger(element) ){
+		if ( !this.isInteger(element) ) {
+			System.out.println("inst chara:" + element);
+
+		} else {
 			System.out.println("inst addre:" + element);
 			
-		}else{
-			System.out.println("inst chara:" + element);
 		}
-		
+
 	}
-	
-	private boolean isInteger(String element){
-		try{
+
+	private boolean isInteger(String element) {
+		try {
 			Integer.parseInt(element);
 			return true;
-			
-		}catch(NumberFormatException e){
+
+		} catch (NumberFormatException e) {
 			return false;
 		}
 	}
@@ -182,7 +189,7 @@ public class TwoPass {
 	public static void main(String[] args) throws IOException {
 
 		String filePath = "inputs/input-2.txt";
-		
+
 		TwoPass tp = new TwoPass(filePath);
 
 	}
