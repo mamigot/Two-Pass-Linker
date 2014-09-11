@@ -11,7 +11,14 @@ import java.util.regex.Pattern;
 public class TwoPass {
 
 	enum Data {
-		DEFINITIONS, USES, INSTRUCTIONS;
+		DEFINITIONS, USES, INSTRUCTIONS,
+
+		// Subcategories that characterize a definition
+		SYMBOL, LOCATION,
+		// Subcategories that characterize an instruction
+		// (for example, in "R 1004", "R" is the type and "1004" is the word,
+		// which is made of an opcode and an address)
+		TYPE, WORD;
 
 		static Data current = getFirst();
 
@@ -33,30 +40,43 @@ public class TwoPass {
 
 	class Symbol {
 		public String symbol;
-		public int location;
-		public boolean isUsed;
-
-		// Specifies the module wherein it was defined
-		public Module defined;
-		// Specifies the modules in which it was used
-		public List<Module> used = new ArrayList<Module>();
+		public Integer location;
+		
+		public Symbol(String symbol, Integer location){
+			this.symbol = symbol;
+			this.location = location;
+		}
+		
+		public Symbol(String symbol){
+			this(symbol, null);
+		}
+		
+		public String toString(){
+			return this.symbol + "=" + this.location;
+		}
 	}
 
 	class TextInstruction {
-		public char classification;
-		public int opcode;
-		public int address;
+		public Character classification;
+		public Integer opcode;
+		public Integer address;
 
+		public TextInstruction(Character classification, Integer opcode, Integer address){
+			this.classification = classification;
+			this.opcode = opcode;
+			this.address = address;
+		}
+		
+		public TextInstruction(Character classification){
+			this(classification, null, null);
+		}
+		
 		public String toString() {
 			return (this.opcode * 1000) + this.address + "";
 		}
 	}
 
 	class Module {
-		// Position of the module with respect to the others
-		// (if it's the first, 0, then 1... useful as an identifier)
-		public int position;
-
 		public int startLocation;
 		public int endLocation;
 		public int length;
@@ -65,15 +85,15 @@ public class TwoPass {
 
 	ArrayList<Module> modules = new ArrayList<Module>();
 	ArrayList<Symbol> symbols = new ArrayList<Symbol>();
-	// Incremented as more modules are processed
+	/**
+	 * Incremented as more modules are processed
+	 */
 	int memoryAddressCounter = 0;
 	/**
-	 * Last-visited item. Since an instruction such as "R 1002" is processed in
-	 * two iterations ("R" and "1002"), this global variable is meant to hold
-	 * the reference to the item whose information is being gathered; could be
-	 * an instruction or a definition.
+	 * Last-visited and incomplete items as the data is being processed.
 	 */
-	Object incompleteItem;
+	Symbol tempSymbol;
+	TextInstruction tempInstruction;
 
 	public TwoPass(String inputFilePath) throws FileNotFoundException {
 		// Save all of the content into a variable
@@ -95,9 +115,9 @@ public class TwoPass {
 
 			if (remainingDefinitions > 0) {
 				if (remainingDefinitions % 2 == 0)
-					this.processDefSymbol(token);
+					this.processDefinition(token, Data.SYMBOL);
 				else
-					this.processDefLocation(token);
+					this.processDefinition(token, Data.LOCATION);
 
 				remainingDefinitions--;
 				if (remainingDefinitions == 0)
@@ -106,7 +126,7 @@ public class TwoPass {
 			}
 
 			else if (remainingUses > 0) {
-				this.processUseSymbol(token);
+				this.processUse(token);
 
 				remainingUses--;
 				if (remainingUses == 0)
@@ -115,7 +135,10 @@ public class TwoPass {
 			}
 
 			else if (remainingInstructions > 0) {
-				this.processInstructionElement(token);
+				if (remainingInstructions % 2 == 0)
+					this.processInstruction(token, Data.TYPE);
+				else
+					this.processInstruction(token, Data.WORD);
 
 				remainingInstructions--;
 				if (remainingInstructions == 0)
@@ -128,62 +151,74 @@ public class TwoPass {
 			else {
 				// Check whatever nextType is and update that value
 				int numNewElements = Integer.parseInt(token);
+				// Nothing to see here... move along
 				if (numNewElements == 0)
 					nextType = Data.getNext();
 
+				// Definitions come in groups of two (symbol + location)
 				if (nextType == Data.DEFINITIONS)
 					remainingDefinitions = numNewElements * 2;
 
 				else if (nextType == Data.USES)
 					remainingUses = numNewElements;
 
+				// Instructions come in groups of two (type + word)
 				else if (nextType == Data.INSTRUCTIONS)
 					remainingInstructions = numNewElements * 2;
 			}
 		}
 	}
 
-	private void processDefSymbol(String element) {
+	private void processDefinition(String element, Data partType) {
 
-		System.out.println("def symbol:" + element);
+		if (partType == Data.SYMBOL) {
+			this.tempSymbol = new Symbol(element);
 
-	}
+		} else if (partType == Data.LOCATION) {
+			String symbol = this.tempSymbol.symbol;
+			int location = Integer.parseInt(element);
+			
+			// Full symbol
+			this.tempSymbol = new Symbol(symbol, location);
+			
+			/*
+			 * Process the definition
+			 */
 
-	private void processDefLocation(String element) {
-
-		System.out.println("def locati:" + element);
-
-	}
-
-	private void processUseSymbol(String element) {
-
-		System.out.println("use symbol:" + element);
-
-	}
-
-	/**
-	 * Could be a classification character (I, A, R, E) or an opcode + address.
-	 */
-	private void processInstructionElement(String element) {
-
-		if (this.isInteger(element)) {
-			System.out.println("inst addre:" + element);
-
-		} else {
-			System.out.println("inst chara:" + element);
-
+			// Don't need this anymore
+			this.tempSymbol = null;
 		}
 
 	}
 
-	private boolean isInteger(String element) {
-		try {
-			Integer.parseInt(element);
-			return true;
+	private void processUse(String element) {
 
-		} catch (NumberFormatException e) {
-			return false;
+		//System.out.println("use symbol:" + element);
+
+	}
+
+	private void processInstruction(String element, Data partType) {
+
+		if (partType == Data.TYPE) {
+			char classification = element.charAt(0);
+			this.tempInstruction = new TextInstruction(classification);
+
+		} else if (partType == Data.WORD) {
+			char classification = this.tempInstruction.classification;
+			int opcode = Character.getNumericValue(element.charAt(0));
+			int address = Integer.parseInt(element.substring(1));
+			
+			// Full instruction
+			this.tempInstruction = new TextInstruction(classification, opcode, address);
+			
+			/*
+			 * Process the instruction
+			 */
+
+			// Don't need this anymore
+			this.tempInstruction = null;
 		}
+
 	}
 
 	public static void main(String[] args) throws IOException {
