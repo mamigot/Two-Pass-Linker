@@ -3,7 +3,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Scanner;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -139,7 +141,7 @@ public class TwoPass {
 	}
 
 	private ArrayList<Module> modules = new ArrayList<Module>();
-	private ArrayList<Symbol> symbols = new ArrayList<Symbol>();
+	private TreeMap<String, Integer> symbols = new TreeMap<String, Integer>();
 	private ArrayList<Integer> memoryMap = new ArrayList<Integer>();
 
 	/**
@@ -330,7 +332,7 @@ public class TwoPass {
 			absoluteLoc = curr.location + module.startLocation;
 
 			// Update this.symbols
-			this.symbols.add(new Symbol(curr.symbol, absoluteLoc));
+			this.symbols.put(curr.symbol, absoluteLoc);
 		}
 
 	}
@@ -340,6 +342,7 @@ public class TwoPass {
 		// Update Relative and External instructions and
 		// assemble all of them into this.memoryMap
 		
+		String relevantSymbol;
 		for(Module module:this.modules){
 			for(TextInstruction instr:module.textInstructions){
 				
@@ -348,13 +351,9 @@ public class TwoPass {
 					
 				else if(instr.classification == 'E'){
 					// Need to get the actual address of the symbol
-					Symbol useSymbol = module.uses.get(instr.address);
+					relevantSymbol = module.uses.get(instr.address).symbol;
 					// Get its absolute address from the global variable
-					for(Symbol curr:this.symbols){
-						if(curr.symbol.equals(useSymbol.symbol)){
-							instr.address = curr.location;
-						}
-					}
+					instr.address = this.symbols.get(relevantSymbol);
 					
 				}	
 				
@@ -363,7 +362,25 @@ public class TwoPass {
 			}
 		}
 		
+		// Print the results
+		this.displayResults();
+	}
+	
+	private void displayResults(){
+		
+		this.displaySymbolTable();
+		System.out.println();
 		this.displayMemoryMap();
+		
+	}
+	
+	private void displaySymbolTable(){
+		
+		System.out.println("Symbol Table");
+		
+		for(Entry<String, Integer> entry:this.symbols.entrySet())
+			System.out.println(entry.getKey() + "=" + entry.getValue());
+		
 	}
 	
 	private void displayMemoryMap(){
@@ -372,7 +389,8 @@ public class TwoPass {
 		
 		int counter = 0;
 		for(Integer address:this.memoryMap){
-			System.out.println(counter + ":\t" + address);
+			System.out.printf("%-3s %s\n", counter + ":", address);
+			//System.out.println(counter + ":\t" + address);
 			counter++;
 		}
 		
@@ -382,20 +400,6 @@ public class TwoPass {
 
 		String filePath = "inputs/input-2.txt";
 		TwoPass tp = new TwoPass(filePath);
-
-		/**
-		ArrayList<Module> mods = tp.modules;
-		for (Module curr : mods)
-			System.out.println(curr + "\n");
-			
-		*/
-
-		/**
-		 * System.out.println("\n");
-		 * 
-		 * System.out.println("SYMBOLS:"); ArrayList<Symbol> symbols =
-		 * tp.symbols; for (Symbol curr : symbols) System.out.println(curr);
-		 */
 
 	}
 
