@@ -52,7 +52,10 @@ public class TwoPass {
 		}
 		
 		public String toString(){
-			return this.symbol + "=" + this.location;
+			if(this.location != null)
+				return this.symbol + "=" + this.location;
+			else
+				return this.symbol;
 		}
 	}
 
@@ -81,7 +84,8 @@ public class TwoPass {
 		public int endLocation;
 		public int length;
 		
-		public List<Symbol> symbols;
+		public List<Symbol> definitions;
+		public List<Symbol> uses;
 		public List<TextInstruction> textInstructions;
 		
 		public Module(int startLocation){
@@ -90,12 +94,17 @@ public class TwoPass {
 			this.endLocation = startLocation;
 			this.length = 0;
 			
-			this.symbols = new ArrayList<Symbol>();
+			this.definitions = new ArrayList<Symbol>();
+			this.uses = new ArrayList<Symbol>();
 			this.textInstructions = new ArrayList<TextInstruction>();
 		}
 		
-		public void addSymbol(Symbol symbol){
-			this.symbols.add(symbol);
+		public void addDefinition(Symbol symbol){
+			this.definitions.add(symbol);
+		}
+		
+		public void addUse(Symbol symbol){
+			this.uses.add(symbol);
 		}
 		
 		public void addInstruction(TextInstruction instruction){
@@ -104,10 +113,27 @@ public class TwoPass {
 			this.length++;
 			this.endLocation = this.startLocation + this.length;
 		}
+		
+		public String toString(){
+			StringBuilder sb = new StringBuilder();
+			
+			sb.append("Defs: " + this.definitions.size() + "\n");
+			for(Symbol def:this.definitions)
+				sb.append("\t" + def + "\n");
+			
+			sb.append("Uses: " + this.uses.size() + "\n");
+			for(Symbol use:this.uses)
+				sb.append("\t" + use + "\n");
+			
+			sb.append("Text: " + this.textInstructions.size() + "\n");
+			for(TextInstruction instr:this.textInstructions)
+				sb.append("\t" + instr.classification + ": " + instr + "\n");
+			
+			return sb.toString();
+		}
 	}
 
 	private ArrayList<Module> modules = new ArrayList<Module>();
-	private ArrayList<Symbol> symbols = new ArrayList<Symbol>();
 	
 	/**
 	 * Last-visited and incomplete items as the data is being processed.
@@ -170,6 +196,8 @@ public class TwoPass {
 			// Only case left: a "remaining" counter
 			// (the numbers before the definitions, uses, instructions...)
 			else {
+				this.initializeModule();
+				
 				// Check whatever nextType is and update that value
 				int numNewElements = Integer.parseInt(token);
 				// Nothing to see here... move along
@@ -178,9 +206,6 @@ public class TwoPass {
 
 				// Definitions come in groups of two (symbol + location)
 				if (nextType == Data.DEFINITIONS){
-					// The new module starts! The next will not start until
-					// the next set of definitions is reached.
-					this.initializeModule();
 					remainingDefinitions = numNewElements * 2;
 				}
 
@@ -223,9 +248,8 @@ public class TwoPass {
 			// Full symbol
 			this.tempSymbol = new Symbol(symbol, location);
 			
-			/*
-			 * Process the definition
-			 */
+			// Add it to the modules
+			this.currModule.addDefinition(this.tempSymbol);
 
 			// Don't need this anymore
 			this.tempSymbol = null;
@@ -234,8 +258,8 @@ public class TwoPass {
 	}
 
 	private void processUse(String element) {
-
-		//System.out.println("use symbol:" + element);
+		
+		this.currModule.addUse(new Symbol(element));
 
 	}
 
@@ -253,9 +277,8 @@ public class TwoPass {
 			// Full instruction
 			this.tempInstruction = new TextInstruction(classification, opcode, address);
 			
-			/* Start the module */
-			
-			
+			// Add it to the modules
+			this.currModule.addInstruction(this.tempInstruction);
 
 			// Don't need this anymore
 			this.tempInstruction = null;
@@ -268,6 +291,10 @@ public class TwoPass {
 		String filePath = "inputs/input-2.txt";
 
 		TwoPass tp = new TwoPass(filePath);
+		
+		ArrayList<Module> mods = tp.modules;
+		for(Module curr:mods)
+			System.out.println(curr + "\n\n");
 
 	}
 
