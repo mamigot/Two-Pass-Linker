@@ -112,11 +112,15 @@ public class TwoPass {
 			this.textInstructions.add(instruction);
 
 			this.length++;
-			this.endLocation = this.startLocation + this.length;
+			this.endLocation = this.startLocation + this.length - 1;
 		}
 
 		public String toString() {
 			StringBuilder sb = new StringBuilder();
+			
+			sb.append("Start: " + this.startLocation + "\n");
+			sb.append("End: " + this.endLocation + "\n");
+			sb.append("Length: " + this.length + "\n");
 
 			sb.append("Defs: " + this.definitions.size() + "\n");
 			for (Symbol def : this.definitions)
@@ -299,7 +303,7 @@ public class TwoPass {
 
 		ArrayList<Module> mods = tp.modules;
 		for (Module curr : mods)
-			System.out.println(curr + "\n\n");
+			System.out.println(curr + "\n");
 
 	}
 
