@@ -80,20 +80,41 @@ public class TwoPass {
 		public int startLocation;
 		public int endLocation;
 		public int length;
-		public List<TextInstruction> textInstructions = new ArrayList<TextInstruction>();
+		
+		public List<Symbol> symbols;
+		public List<TextInstruction> textInstructions;
+		
+		public Module(int startLocation){
+			this.startLocation = startLocation;
+			
+			this.endLocation = startLocation;
+			this.length = 0;
+			
+			this.symbols = new ArrayList<Symbol>();
+			this.textInstructions = new ArrayList<TextInstruction>();
+		}
+		
+		public void addSymbol(Symbol symbol){
+			this.symbols.add(symbol);
+		}
+		
+		public void addInstruction(TextInstruction instruction){
+			this.textInstructions.add(instruction);
+			
+			this.length++;
+			this.endLocation = this.startLocation + this.length;
+		}
 	}
 
-	ArrayList<Module> modules = new ArrayList<Module>();
-	ArrayList<Symbol> symbols = new ArrayList<Symbol>();
-	/**
-	 * Incremented as more modules are processed
-	 */
-	int memoryAddressCounter = 0;
+	private ArrayList<Module> modules = new ArrayList<Module>();
+	private ArrayList<Symbol> symbols = new ArrayList<Symbol>();
+	
 	/**
 	 * Last-visited and incomplete items as the data is being processed.
 	 */
-	Symbol tempSymbol;
-	TextInstruction tempInstruction;
+	private Symbol tempSymbol;
+	private TextInstruction tempInstruction;
+	private Module currModule;
 
 	public TwoPass(String inputFilePath) throws FileNotFoundException {
 		// Save all of the content into a variable
@@ -156,8 +177,12 @@ public class TwoPass {
 					nextType = Data.getNext();
 
 				// Definitions come in groups of two (symbol + location)
-				if (nextType == Data.DEFINITIONS)
+				if (nextType == Data.DEFINITIONS){
+					// The new module starts! The next will not start until
+					// the next set of definitions is reached.
+					this.initializeModule();
 					remainingDefinitions = numNewElements * 2;
+				}
 
 				else if (nextType == Data.USES)
 					remainingUses = numNewElements;
@@ -169,6 +194,23 @@ public class TwoPass {
 		}
 	}
 
+	private void initializeModule(){
+		// Get its start location on memory
+		// Equivalent to the final word of the previous module + 1
+		// (unless there are no modules; in that case, it's 0)
+		int startLocation = 0;
+		
+		if(!this.modules.isEmpty()){
+			int lastModuleIndex = this.modules.size() - 1;
+			startLocation = this.modules.get(lastModuleIndex).endLocation + 1;
+		}
+		
+		this.currModule = new Module(startLocation);
+		// Add this to the global list of modules
+		// (it will be updated elsewhere through this.currModule)
+		this.modules.add(currModule);
+	}
+	
 	private void processDefinition(String element, Data partType) {
 
 		if (partType == Data.SYMBOL) {
@@ -211,9 +253,9 @@ public class TwoPass {
 			// Full instruction
 			this.tempInstruction = new TextInstruction(classification, opcode, address);
 			
-			/*
-			 * Process the instruction
-			 */
+			/* Start the module */
+			
+			
 
 			// Don't need this anymore
 			this.tempInstruction = null;
