@@ -117,7 +117,7 @@ public class TwoPass {
 
 		public String toString() {
 			StringBuilder sb = new StringBuilder();
-			
+
 			sb.append("Start: " + this.startLocation + "\n");
 			sb.append("End: " + this.endLocation + "\n");
 			sb.append("Length: " + this.length + "\n");
@@ -139,6 +139,7 @@ public class TwoPass {
 	}
 
 	private ArrayList<Module> modules = new ArrayList<Module>();
+	private ArrayList<Symbol> symbols = new ArrayList<Symbol>();
 
 	/**
 	 * Last-visited and incomplete items as the data is being processed.
@@ -203,12 +204,13 @@ public class TwoPass {
 			else {
 				// Start a new module when the next type is DEFINITIONS
 				// regardless of whether there are actual definitions or not
-				if (nextType == Data.DEFINITIONS)
+				if (nextType == Data.DEFINITIONS){
+					this.analyzeLastModule();
 					this.initializeModule();
+				}
 
 				// Check whatever nextType is and update that value
 				int numNewElements = Integer.parseInt(token);
-
 				// Nothing to see here... move along
 				if (numNewElements == 0)
 					nextType = Data.getNext();
@@ -225,8 +227,42 @@ public class TwoPass {
 					remainingInstructions = numNewElements * 2;
 			}
 		}
+		
+		// After iterating through all of the elements, make sure
+		// that the last module is analyzed
+		this.analyzeLastModule();
+	}
+	
+	private void analyzeLastModule() {
+		
+		// Assuming that modules have been analyzed (that this isn't the
+		// start of the program), analyzes the last module by:
+		// 1. Pushing the defined variables to a dedicated global list
+		// 2. Error detection and arbitrary limits analysis
+		
+		if(this.modules.isEmpty())
+			return;
+		
+		Module lastModule = this.modules.get(this.modules.size() - 1);
+
+		setAbsoluteSymbolValues(lastModule);
+		
 	}
 
+	private void setAbsoluteSymbolValues(Module module){
+		
+		List<Symbol> currSymbols = module.definitions;
+		
+		int absoluteLoc;
+		for(Symbol curr:currSymbols){
+			absoluteLoc = curr.location + module.startLocation;
+			
+			// Update this.symbols
+			this.symbols.add(new Symbol(curr.symbol, absoluteLoc));
+		}
+		
+	}
+	
 	private void initializeModule() {
 		// Get its start location on memory
 		// Equivalent to the final word of the previous module + 1
@@ -297,13 +333,19 @@ public class TwoPass {
 
 	public static void main(String[] args) throws IOException {
 
-		String filePath = "inputs/input-2.txt";
-
+		String filePath = "inputs/input-9.txt";
 		TwoPass tp = new TwoPass(filePath);
 
-		ArrayList<Module> mods = tp.modules;
-		for (Module curr : mods)
-			System.out.println(curr + "\n");
+		// ArrayList<Module> mods = tp.modules;
+		// for (Module curr : mods)
+		// System.out.println(curr + "\n");
+		
+		//System.out.println("\n");
+		
+		System.out.println("SYMBOLS:");
+		ArrayList<Symbol> symbols = tp.symbols;
+		for (Symbol curr : symbols)
+			System.out.println(curr);
 
 	}
 
