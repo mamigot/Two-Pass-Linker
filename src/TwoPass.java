@@ -41,18 +41,18 @@ public class TwoPass {
 	class Symbol {
 		public String symbol;
 		public Integer location;
-		
-		public Symbol(String symbol, Integer location){
+
+		public Symbol(String symbol, Integer location) {
 			this.symbol = symbol;
 			this.location = location;
 		}
-		
-		public Symbol(String symbol){
+
+		public Symbol(String symbol) {
 			this(symbol, null);
 		}
-		
-		public String toString(){
-			if(this.location != null)
+
+		public String toString() {
+			if (this.location != null)
 				return this.symbol + "=" + this.location;
 			else
 				return this.symbol;
@@ -64,16 +64,17 @@ public class TwoPass {
 		public Integer opcode;
 		public Integer address;
 
-		public TextInstruction(Character classification, Integer opcode, Integer address){
+		public TextInstruction(Character classification, Integer opcode,
+				Integer address) {
 			this.classification = classification;
 			this.opcode = opcode;
 			this.address = address;
 		}
-		
-		public TextInstruction(Character classification){
+
+		public TextInstruction(Character classification) {
 			this(classification, null, null);
 		}
-		
+
 		public String toString() {
 			return (this.opcode * 1000) + this.address + "";
 		}
@@ -83,58 +84,58 @@ public class TwoPass {
 		public int startLocation;
 		public int endLocation;
 		public int length;
-		
+
 		public List<Symbol> definitions;
 		public List<Symbol> uses;
 		public List<TextInstruction> textInstructions;
-		
-		public Module(int startLocation){
+
+		public Module(int startLocation) {
 			this.startLocation = startLocation;
-			
+
 			this.endLocation = startLocation;
 			this.length = 0;
-			
+
 			this.definitions = new ArrayList<Symbol>();
 			this.uses = new ArrayList<Symbol>();
 			this.textInstructions = new ArrayList<TextInstruction>();
 		}
-		
-		public void addDefinition(Symbol symbol){
+
+		public void addDefinition(Symbol symbol) {
 			this.definitions.add(symbol);
 		}
-		
-		public void addUse(Symbol symbol){
+
+		public void addUse(Symbol symbol) {
 			this.uses.add(symbol);
 		}
-		
-		public void addInstruction(TextInstruction instruction){
+
+		public void addInstruction(TextInstruction instruction) {
 			this.textInstructions.add(instruction);
-			
+
 			this.length++;
 			this.endLocation = this.startLocation + this.length;
 		}
-		
-		public String toString(){
+
+		public String toString() {
 			StringBuilder sb = new StringBuilder();
-			
+
 			sb.append("Defs: " + this.definitions.size() + "\n");
-			for(Symbol def:this.definitions)
+			for (Symbol def : this.definitions)
 				sb.append("\t" + def + "\n");
-			
+
 			sb.append("Uses: " + this.uses.size() + "\n");
-			for(Symbol use:this.uses)
+			for (Symbol use : this.uses)
 				sb.append("\t" + use + "\n");
-			
+
 			sb.append("Text: " + this.textInstructions.size() + "\n");
-			for(TextInstruction instr:this.textInstructions)
+			for (TextInstruction instr : this.textInstructions)
 				sb.append("\t" + instr.classification + ": " + instr + "\n");
-			
+
 			return sb.toString();
 		}
 	}
 
 	private ArrayList<Module> modules = new ArrayList<Module>();
-	
+
 	/**
 	 * Last-visited and incomplete items as the data is being processed.
 	 */
@@ -196,18 +197,21 @@ public class TwoPass {
 			// Only case left: a "remaining" counter
 			// (the numbers before the definitions, uses, instructions...)
 			else {
-				this.initializeModule();
-				
+				// Start a new module when the next type is DEFINITIONS
+				// regardless of whether there are actual definitions or not
+				if (nextType == Data.DEFINITIONS)
+					this.initializeModule();
+
 				// Check whatever nextType is and update that value
 				int numNewElements = Integer.parseInt(token);
+
 				// Nothing to see here... move along
 				if (numNewElements == 0)
 					nextType = Data.getNext();
 
 				// Definitions come in groups of two (symbol + location)
-				if (nextType == Data.DEFINITIONS){
+				if (nextType == Data.DEFINITIONS)
 					remainingDefinitions = numNewElements * 2;
-				}
 
 				else if (nextType == Data.USES)
 					remainingUses = numNewElements;
@@ -219,23 +223,23 @@ public class TwoPass {
 		}
 	}
 
-	private void initializeModule(){
+	private void initializeModule() {
 		// Get its start location on memory
 		// Equivalent to the final word of the previous module + 1
 		// (unless there are no modules; in that case, it's 0)
 		int startLocation = 0;
-		
-		if(!this.modules.isEmpty()){
+
+		if (!this.modules.isEmpty()) {
 			int lastModuleIndex = this.modules.size() - 1;
 			startLocation = this.modules.get(lastModuleIndex).endLocation + 1;
 		}
-		
+
 		this.currModule = new Module(startLocation);
 		// Add this to the global list of modules
 		// (it will be updated elsewhere through this.currModule)
 		this.modules.add(currModule);
 	}
-	
+
 	private void processDefinition(String element, Data partType) {
 
 		if (partType == Data.SYMBOL) {
@@ -244,10 +248,10 @@ public class TwoPass {
 		} else if (partType == Data.LOCATION) {
 			String symbol = this.tempSymbol.symbol;
 			int location = Integer.parseInt(element);
-			
+
 			// Full symbol
 			this.tempSymbol = new Symbol(symbol, location);
-			
+
 			// Add it to the modules
 			this.currModule.addDefinition(this.tempSymbol);
 
@@ -258,7 +262,7 @@ public class TwoPass {
 	}
 
 	private void processUse(String element) {
-		
+
 		this.currModule.addUse(new Symbol(element));
 
 	}
@@ -273,10 +277,11 @@ public class TwoPass {
 			char classification = this.tempInstruction.classification;
 			int opcode = Character.getNumericValue(element.charAt(0));
 			int address = Integer.parseInt(element.substring(1));
-			
+
 			// Full instruction
-			this.tempInstruction = new TextInstruction(classification, opcode, address);
-			
+			this.tempInstruction = new TextInstruction(classification, opcode,
+					address);
+
 			// Add it to the modules
 			this.currModule.addInstruction(this.tempInstruction);
 
@@ -291,9 +296,9 @@ public class TwoPass {
 		String filePath = "inputs/input-2.txt";
 
 		TwoPass tp = new TwoPass(filePath);
-		
+
 		ArrayList<Module> mods = tp.modules;
-		for(Module curr:mods)
+		for (Module curr : mods)
 			System.out.println(curr + "\n\n");
 
 	}
