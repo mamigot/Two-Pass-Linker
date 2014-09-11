@@ -140,6 +140,7 @@ public class TwoPass {
 
 	private ArrayList<Module> modules = new ArrayList<Module>();
 	private ArrayList<Symbol> symbols = new ArrayList<Symbol>();
+	private ArrayList<Integer> memoryMap = new ArrayList<Integer>();
 
 	/**
 	 * Last-visited and incomplete items as the data is being processed.
@@ -204,7 +205,7 @@ public class TwoPass {
 			else {
 				// Start a new module when the next type is DEFINITIONS
 				// regardless of whether there are actual definitions or not
-				if (nextType == Data.DEFINITIONS){
+				if (nextType == Data.DEFINITIONS) {
 					this.analyzeLastModule();
 					this.initializeModule();
 				}
@@ -227,57 +228,13 @@ public class TwoPass {
 					remainingInstructions = numNewElements * 2;
 			}
 		}
-		
+
 		// After iterating through all of the elements, make sure
 		// that the last module is analyzed
 		this.analyzeLastModule();
-	}
-	
-	private void analyzeLastModule() {
-		
-		// Assuming that modules have been analyzed (that this isn't the
-		// start of the program), analyzes the last module by:
-		// 1. Pushing the defined variables to a dedicated global list
-		// 2. Error detection and arbitrary limits analysis
-		
-		if(this.modules.isEmpty())
-			return;
-		
-		Module lastModule = this.modules.get(this.modules.size() - 1);
 
-		setAbsoluteSymbolValues(lastModule);
-		
-	}
-
-	private void setAbsoluteSymbolValues(Module module){
-		
-		List<Symbol> currSymbols = module.definitions;
-		
-		int absoluteLoc;
-		for(Symbol curr:currSymbols){
-			absoluteLoc = curr.location + module.startLocation;
-			
-			// Update this.symbols
-			this.symbols.add(new Symbol(curr.symbol, absoluteLoc));
-		}
-		
-	}
-	
-	private void initializeModule() {
-		// Get its start location on memory
-		// Equivalent to the final word of the previous module + 1
-		// (unless there are no modules; in that case, it's 0)
-		int startLocation = 0;
-
-		if (!this.modules.isEmpty()) {
-			int lastModuleIndex = this.modules.size() - 1;
-			startLocation = this.modules.get(lastModuleIndex).endLocation + 1;
-		}
-
-		this.currModule = new Module(startLocation);
-		// Add this to the global list of modules
-		// (it will be updated elsewhere through this.currModule)
-		this.modules.add(currModule);
+		// Second pass
+		this.performSecondPass();
 	}
 
 	private void processDefinition(String element, Data partType) {
@@ -331,21 +288,114 @@ public class TwoPass {
 
 	}
 
+	private void initializeModule() {
+		// Get its start location on memory
+		// Equivalent to the final word of the previous module + 1
+		// (unless there are no modules; in that case, it's 0)
+		int startLocation = 0;
+
+		if (!this.modules.isEmpty()) {
+			int lastModuleIndex = this.modules.size() - 1;
+			startLocation = this.modules.get(lastModuleIndex).endLocation + 1;
+		}
+
+		this.currModule = new Module(startLocation);
+		// Add this to the global list of modules
+		// (it will be updated elsewhere through this.currModule)
+		this.modules.add(currModule);
+	}
+
+	private void analyzeLastModule() {
+
+		// Assuming that modules have been analyzed (that this isn't the
+		// start of the program), analyzes the last module by:
+		// 1. Pushing the defined variables to a dedicated global list
+		// 2. Error detection and arbitrary limits analysis
+
+		if (this.modules.isEmpty())
+			return;
+
+		Module lastModule = this.modules.get(this.modules.size() - 1);
+
+		setAbsoluteSymbolValues(lastModule);
+
+	}
+
+	private void setAbsoluteSymbolValues(Module module) {
+
+		List<Symbol> currSymbols = module.definitions;
+
+		int absoluteLoc;
+		for (Symbol curr : currSymbols) {
+			absoluteLoc = curr.location + module.startLocation;
+
+			// Update this.symbols
+			this.symbols.add(new Symbol(curr.symbol, absoluteLoc));
+		}
+
+	}
+	
+	private void performSecondPass(){
+		
+		// Update Relative and External instructions and
+		// assemble all of them into this.memoryMap
+		
+		for(Module module:this.modules){
+			for(TextInstruction instr:module.textInstructions){
+				
+				if(instr.classification == 'R')
+					instr.address = instr.address + module.startLocation;
+					
+				else if(instr.classification == 'E'){
+					// Need to get the actual address of the symbol
+					Symbol useSymbol = module.uses.get(instr.address);
+					// Get its absolute address from the global variable
+					for(Symbol curr:this.symbols){
+						if(curr.symbol.equals(useSymbol.symbol)){
+							instr.address = curr.location;
+						}
+					}
+					
+				}	
+				
+				// Either way, add them to the map
+				this.memoryMap.add(instr.opcode * 1000 + instr.address);
+			}
+		}
+		
+		this.displayMemoryMap();
+	}
+	
+	private void displayMemoryMap(){
+		
+		System.out.println("Memory Map");
+		
+		int counter = 0;
+		for(Integer address:this.memoryMap){
+			System.out.println(counter + ":\t" + address);
+			counter++;
+		}
+		
+	}
+
 	public static void main(String[] args) throws IOException {
 
-		String filePath = "inputs/input-9.txt";
+		String filePath = "inputs/input-2.txt";
 		TwoPass tp = new TwoPass(filePath);
 
-		// ArrayList<Module> mods = tp.modules;
-		// for (Module curr : mods)
-		// System.out.println(curr + "\n");
-		
-		//System.out.println("\n");
-		
-		System.out.println("SYMBOLS:");
-		ArrayList<Symbol> symbols = tp.symbols;
-		for (Symbol curr : symbols)
-			System.out.println(curr);
+		/**
+		ArrayList<Module> mods = tp.modules;
+		for (Module curr : mods)
+			System.out.println(curr + "\n");
+			
+		*/
+
+		/**
+		 * System.out.println("\n");
+		 * 
+		 * System.out.println("SYMBOLS:"); ArrayList<Symbol> symbols =
+		 * tp.symbols; for (Symbol curr : symbols) System.out.println(curr);
+		 */
 
 	}
 
