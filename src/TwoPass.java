@@ -53,6 +53,17 @@ public class TwoPass {
 			this(symbol, null);
 		}
 
+		/**
+		 * Judges equality based solely on the symbol (the String), not the
+		 * location.
+		 */
+		public boolean equals(Symbol that) {
+			if (this.symbol.equals(that.symbol))
+				return true;
+			else
+				return false;
+		}
+
 		public String toString() {
 			if (this.location != null)
 				return this.symbol + "=" + this.location;
@@ -235,7 +246,7 @@ public class TwoPass {
 		// that the last module is analyzed
 		this.analyzeLastModule();
 
-		// Second pass
+		// Perform second pass of the two-part linking process
 		this.performSecondPass();
 	}
 
@@ -303,8 +314,9 @@ public class TwoPass {
 
 		this.currModule = new Module(startLocation);
 		// Add this to the global list of modules
-		// (it will be updated elsewhere through this.currModule)
-		this.modules.add(currModule);
+		// (it will be updated elsewhere through the reference to
+		// this.currModule)
+		this.modules.add(this.currModule);
 	}
 
 	private void analyzeLastModule() {
@@ -319,8 +331,38 @@ public class TwoPass {
 
 		Module lastModule = this.modules.get(this.modules.size() - 1);
 
-		setAbsoluteSymbolValues(lastModule);
+		this.checkUseOfSymbols(lastModule);
+		this.setAbsoluteSymbolValues(lastModule);
 
+	}
+
+	private void checkUseOfSymbols(Module module) {
+
+		this.definedSymbolsWereUsed(module);
+
+	}
+
+	/**
+	 * Returns true if all of the defined symbols in a module are used.
+	 */
+	private void definedSymbolsWereUsed(Module module) {
+
+		boolean defWasUsed;
+		for (Symbol def : module.definitions) {
+			defWasUsed = false;
+
+			for (Symbol use : module.uses) {
+				if (def.equals(use)) {
+					defWasUsed = true;
+					break;
+				}
+			}
+
+			if (!defWasUsed){
+				this.printWarningMsg("Symbol '" + def.symbol + "' was defined but not used.");
+				return;
+			}
+		}
 	}
 
 	private void setAbsoluteSymbolValues(Module module) {
@@ -329,71 +371,88 @@ public class TwoPass {
 
 		int absoluteLoc;
 		for (Symbol curr : currSymbols) {
+			if (curr.location == null) {
+				this.printErrorMsg("Symbol '" + curr.symbol
+						+ "' was defined without a location... using 0 instead");
+				curr.location = 0;
+			}
+
 			absoluteLoc = curr.location + module.startLocation;
 
-			// Update this.symbols
+			// Error if a symbol is multiply defined (stick with the first
+			// definition in that case)
+			if (this.symbols.containsKey(curr.symbol)) {
+				// Symbol has clearly been defined already...
+				this.printErrorMsg("Symbol '" + curr.symbol
+						+ "' has already been defined at location '"
+						+ curr.location + "'... new location '" + absoluteLoc
+						+ "' will not be saved.");
+				continue;
+			}
+
+			// Update this.symbols (the global structure with the symbols)
 			this.symbols.put(curr.symbol, absoluteLoc);
 		}
 
 	}
-	
-	private void performSecondPass(){
-		
+
+	private void performSecondPass() {
+
 		// Update Relative and External instructions and
 		// assemble all of them into this.memoryMap
-		
+
 		String relevantSymbol;
-		for(Module module:this.modules){
-			for(TextInstruction instr:module.textInstructions){
-				
-				if(instr.classification == 'R')
+		for (Module module : this.modules) {
+			for (TextInstruction instr : module.textInstructions) {
+
+				if (instr.classification == 'R')
 					instr.address = instr.address + module.startLocation;
-					
-				else if(instr.classification == 'E'){
+
+				else if (instr.classification == 'E') {
 					// Need to get the actual address of the symbol
 					relevantSymbol = module.uses.get(instr.address).symbol;
 					// Get its absolute address from the global variable
 					instr.address = this.symbols.get(relevantSymbol);
-					
-				}	
-				
-				// Either way, add them to the map
+				}
+
+				// Add the word to the map
 				this.memoryMap.add(instr.opcode * 1000 + instr.address);
 			}
 		}
-		
+
 		// Print the results
 		this.displayResults();
 	}
-	
-	private void displayResults(){
-		
-		this.displaySymbolTable();
-		System.out.println();
-		this.displayMemoryMap();
-		
-	}
-	
-	private void displaySymbolTable(){
-		
+
+	private void displayResults() {
+
 		System.out.println("Symbol Table");
-		
-		for(Entry<String, Integer> entry:this.symbols.entrySet())
+
+		for (Entry<String, Integer> entry : this.symbols.entrySet())
 			System.out.println(entry.getKey() + "=" + entry.getValue());
-		
-	}
-	
-	private void displayMemoryMap(){
-		
+
+		System.out.println();
+
 		System.out.println("Memory Map");
-		
+
 		int counter = 0;
-		for(Integer address:this.memoryMap){
+		for (Integer address : this.memoryMap) {
 			System.out.printf("%-3s %s\n", counter + ":", address);
-			//System.out.println(counter + ":\t" + address);
 			counter++;
 		}
-		
+
+	}
+
+	private void printErrorMsg(String error) {
+
+		System.out.println("ERROR: " + error);
+
+	}
+
+	private void printWarningMsg(String warning) {
+
+		System.out.println("WARNING: " + warning);
+
 	}
 
 	public static void main(String[] args) throws IOException {
