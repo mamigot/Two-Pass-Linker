@@ -150,11 +150,23 @@ public class TwoPass {
 			return sb.toString();
 		}
 	}
+	
+	class DescriptiveItem<T>{
+		public T item;
+		public String errorMsg;
+		
+		public DescriptiveItem(T item, String errorMsg){
+			this.item = item;
+			this.errorMsg = errorMsg;
+		}
+	}
+	
+	private int machineMemorySize = 600;
 
 	private ArrayList<Module> modules = new ArrayList<Module>();
-	private TreeMap<String, Integer> symbols = new TreeMap<String, Integer>();
-	private ArrayList<Integer> memoryMap = new ArrayList<Integer>();
-
+	private TreeMap<String, DescriptiveItem<Symbol>> symbols = new TreeMap<String, DescriptiveItem<Symbol>>();
+	private ArrayList<DescriptiveItem<Integer>> memoryMap = new ArrayList<DescriptiveItem<Integer>>();
+	
 	/**
 	 * Last-visited and incomplete items as the data is being processed.
 	 */
@@ -331,67 +343,30 @@ public class TwoPass {
 
 		Module lastModule = this.modules.get(this.modules.size() - 1);
 
-		this.checkUseOfSymbols(lastModule);
 		this.setAbsoluteSymbolValues(lastModule);
 
-	}
-
-	private void checkUseOfSymbols(Module module) {
-
-		this.definedSymbolsWereUsed(module);
-
-	}
-
-	/**
-	 * Returns true if all of the defined symbols in a module are used.
-	 */
-	private void definedSymbolsWereUsed(Module module) {
-
-		boolean defWasUsed;
-		for (Symbol def : module.definitions) {
-			defWasUsed = false;
-
-			for (Symbol use : module.uses) {
-				if (def.equals(use)) {
-					defWasUsed = true;
-					break;
-				}
-			}
-
-			if (!defWasUsed){
-				this.printWarningMsg("Symbol '" + def.symbol + "' was defined but not used.");
-				return;
-			}
-		}
 	}
 
 	private void setAbsoluteSymbolValues(Module module) {
 
 		List<Symbol> currSymbols = module.definitions;
 
+		DescriptiveItem<Symbol> descriptiveSymbol;
+		String errorMsg;
 		int absoluteLoc;
 		for (Symbol curr : currSymbols) {
-			if (curr.location == null) {
-				this.printErrorMsg("Symbol '" + curr.symbol
-						+ "' was defined without a location... using 0 instead");
+			errorMsg = null;
+			
+			// Symbol defined without a relative location
+			// (should never happen)
+			if (curr.location == null)
 				curr.location = 0;
-			}
-
+			
 			absoluteLoc = curr.location + module.startLocation;
 
-			// Error if a symbol is multiply defined (stick with the first
-			// definition in that case)
-			if (this.symbols.containsKey(curr.symbol)) {
-				// Symbol has clearly been defined already...
-				this.printErrorMsg("Symbol '" + curr.symbol
-						+ "' has already been defined at location '"
-						+ curr.location + "'... new location '" + absoluteLoc
-						+ "' will not be saved.");
-				continue;
-			}
-
 			// Update this.symbols (the global structure with the symbols)
-			this.symbols.put(curr.symbol, absoluteLoc);
+			descriptiveSymbol = new DescriptiveItem<Symbol>(new Symbol(curr.symbol, absoluteLoc), errorMsg);
+			this.symbols.put(descriptiveSymbol.item.symbol, descriptiveSymbol);
 		}
 
 	}
@@ -401,10 +376,14 @@ public class TwoPass {
 		// Update Relative and External instructions and
 		// assemble all of them into this.memoryMap
 
+		String errorMsg;
 		String relevantSymbol;
+		Integer word;
 		for (Module module : this.modules) {
 			for (TextInstruction instr : module.textInstructions) {
 
+				errorMsg = null;
+				
 				if (instr.classification == 'R')
 					instr.address = instr.address + module.startLocation;
 
@@ -412,11 +391,13 @@ public class TwoPass {
 					// Need to get the actual address of the symbol
 					relevantSymbol = module.uses.get(instr.address).symbol;
 					// Get its absolute address from the global variable
-					instr.address = this.symbols.get(relevantSymbol);
+					instr.address = this.symbols.get(relevantSymbol).item.location;
 				}
 
+				word = instr.opcode * 1000 + instr.address;
+
 				// Add the word to the map
-				this.memoryMap.add(instr.opcode * 1000 + instr.address);
+				this.memoryMap.add(new DescriptiveItem<Integer>(word, errorMsg));
 			}
 		}
 
@@ -425,39 +406,43 @@ public class TwoPass {
 	}
 
 	private void displayResults() {
-
+		
 		System.out.println("Symbol Table");
 
-		for (Entry<String, Integer> entry : this.symbols.entrySet())
-			System.out.println(entry.getKey() + "=" + entry.getValue());
+		DescriptiveItem<Symbol> curr;
+		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbols.entrySet()){
+			curr = entry.getValue();
+			System.out.print(curr.item.symbol + "=" + curr.item.location);
+			
+			if(curr.errorMsg != null)
+				System.out.print(" " + curr.errorMsg);
+			
+			System.out.println();
+		}
 
 		System.out.println();
 
 		System.out.println("Memory Map");
 
 		int counter = 0;
-		for (Integer address : this.memoryMap) {
-			System.out.printf("%-3s %s\n", counter + ":", address);
+		int address;
+		for (DescriptiveItem<Integer> memoryEntry : this.memoryMap) {
+
+			address = memoryEntry.item;
+			System.out.printf("%-3s %s", counter + ":", address);
+			
+			if(memoryEntry.errorMsg != null)
+				System.out.print(" " + memoryEntry.errorMsg);
+			
+			System.out.println();
 			counter++;
 		}
 
 	}
 
-	private void printErrorMsg(String error) {
-
-		System.out.println("ERROR: " + error);
-
-	}
-
-	private void printWarningMsg(String warning) {
-
-		System.out.println("WARNING: " + warning);
-
-	}
-
 	public static void main(String[] args) throws IOException {
 
-		String filePath = "inputs/input-2.txt";
+		String filePath = "inputs/input-4.txt";
 		TwoPass tp = new TwoPass(filePath);
 
 	}
