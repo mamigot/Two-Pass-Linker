@@ -154,7 +154,7 @@ public class TwoPass {
 	class DescriptiveItem<T> {
 		public T item;
 		public String errorMsg;
-
+		
 		public DescriptiveItem(T item, String errorMsg) {
 			this.item = item;
 			this.errorMsg = errorMsg;
@@ -164,9 +164,11 @@ public class TwoPass {
 	private int machineMemorySize = 600;
 
 	private ArrayList<Module> modules = new ArrayList<Module>();
-	private TreeMap<String, DescriptiveItem<Symbol>> symbols = new TreeMap<String, DescriptiveItem<Symbol>>();
+	private TreeMap<String, DescriptiveItem<Symbol>> symbolTable = new TreeMap<String, DescriptiveItem<Symbol>>();
 	private ArrayList<DescriptiveItem<Integer>> memoryMap = new ArrayList<DescriptiveItem<Integer>>();
-
+	
+	private TreeMap<String, Integer> unusedSymbols = new TreeMap<String, Integer>();
+	
 	/**
 	 * Last-visited and incomplete items as the data is being processed.
 	 */
@@ -226,7 +228,7 @@ public class TwoPass {
 			}
 
 			// Only case left: a "remaining" counter
-			// (the numbers before the definitions, uses, instructions...)
+			// (the number right before the definitions, uses, instructions...)
 			else {
 				// Start a new module when the next type is DEFINITIONS
 				// regardless of whether there are actual definitions or not
@@ -354,20 +356,26 @@ public class TwoPass {
 		DescriptiveItem<Symbol> descriptiveSymbol;
 		String errorMsg;
 		int absoluteLoc;
-		for (Symbol curr : currSymbols) {
+		for (Symbol currSymbol : currSymbols) {
 			errorMsg = null;
+
+			if (this.symbolTable.containsKey(currSymbol.symbol)){
+				this.symbolTable.get(currSymbol.symbol).errorMsg = "Error: This variable is multiply defined; first value used.";
+				continue;
+			}
 
 			// Symbol defined without a relative location
 			// (this edge case wasn't even considered, but just in case)
-			if (curr.location == null)
-				curr.location = 0;
+			if (currSymbol.location == null)
+				currSymbol.location = 0;
 
-			absoluteLoc = curr.location + module.startLocation;
-			curr.location = absoluteLoc;
+			absoluteLoc = currSymbol.location + module.startLocation;
+			currSymbol.location = absoluteLoc;
 
 			// Update this.symbols (the global structure with the symbols)
-			descriptiveSymbol = new DescriptiveItem<Symbol>(curr, errorMsg);
-			this.symbols.put(descriptiveSymbol.item.symbol, descriptiveSymbol);
+			descriptiveSymbol = new DescriptiveItem<Symbol>(currSymbol,
+					errorMsg);
+			this.symbolTable.put(descriptiveSymbol.item.symbol, descriptiveSymbol);
 		}
 
 	}
@@ -404,8 +412,9 @@ public class TwoPass {
 					} else {
 						// Map the address to the external symbol
 						relevantSymbol = module.uses.get(relativeAddress).symbol;
+						
 
-						if (this.symbols.get(relevantSymbol) == null) {
+						if (this.symbolTable.get(relevantSymbol) == null) {
 							// Check if the symbol is globally defined
 							errorMsg = "Error: " + relevantSymbol
 									+ " is not defined; zero used.";
@@ -413,7 +422,7 @@ public class TwoPass {
 
 						} else {
 							// Get its absolute address
-							absoluteAddress = this.symbols.get(relevantSymbol).item.location;
+							absoluteAddress = this.symbolTable.get(relevantSymbol).item.location;
 						}
 					}
 				}
@@ -433,13 +442,15 @@ public class TwoPass {
 		// Print the results
 		this.displayResults();
 	}
-
+	
+	
+	
 	private void displayResults() {
 
 		System.out.println("Symbol Table");
 
 		DescriptiveItem<Symbol> curr;
-		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbols
+		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbolTable
 				.entrySet()) {
 			curr = entry.getValue();
 			System.out.print(curr.item.symbol + "=" + curr.item.location);
@@ -468,10 +479,13 @@ public class TwoPass {
 			counter++;
 		}
 
+		System.out.println();
+		
+		
 	}
 
 	public static void main(String[] args) throws IOException {
-		
+
 		// Get the file path from the command line
 		String filePath;
 		if (args.length > 0)
