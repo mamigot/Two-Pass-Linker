@@ -380,29 +380,50 @@ public class TwoPass {
 		String errorMsg;
 		String relevantSymbol;
 		Integer word;
+		Integer relativeAddress;
+		Integer absoluteAddress;
 		for (Module module : this.modules) {
 			for (TextInstruction instr : module.textInstructions) {
 
 				errorMsg = null;
+				relativeAddress = instr.address;
+				absoluteAddress = instr.address;
 
-				if (instr.classification == 'R')
-					instr.address = instr.address + module.startLocation;
+				if (instr.classification == 'R') {
+					absoluteAddress = relativeAddress + module.startLocation;
 
-				else if (instr.classification == 'E') {
-					// Need to get the actual address of the symbol
-					relevantSymbol = module.uses.get(instr.address).symbol;
-					// Get its absolute address from the global variable
+				} else if (instr.classification == 'E') {
+					if(module.uses.size() <= relativeAddress){
+						// The external address is too large
+						// BREAK OUT OF THE CONDITIONAL!
+					}
 					
-					/** USE THIS TO CHECK IF THE SYMBOL IS DEFINED **/
-					if(this.symbols.get(relevantSymbol) == null)
-						System.out.println("no location here for symbol " + relevantSymbol);
-					/** **/
-					
-					instr.address = this.symbols.get(relevantSymbol).item.location;
+					// Map the address to the external symbol
+					relevantSymbol = module.uses.get(relativeAddress).symbol;
+
+					if (this.symbols.get(relevantSymbol) == null) {
+						// Check if the referenced symbol is globally defined
+						errorMsg = "Error: " + relevantSymbol
+								+ " is not defined; zero used.";
+						instr.address = 0;
+
+					} else {
+						// Get its absolute address from the global symbols
+						absoluteAddress = this.symbols.get(relevantSymbol).item.location;
+					}
 				}
 
-				word = instr.opcode * 1000 + instr.address;
+				if (relativeAddress > module.length) {
+					// Even if the check is for the relative address, the final
+					// address should be 0; that's why this sets absoluteAddress
+					errorMsg = "Error: Relative address exceeds module size; zero used.";
+					absoluteAddress = 0;
+				} else if (absoluteAddress > this.machineMemorySize) {
+					errorMsg = "Error: Absolute address exceeds machine size; zero used.";
+					absoluteAddress = 0;
+				}
 
+				word = instr.opcode * 1000 + absoluteAddress;
 				// Add the word to the map
 				this.memoryMap
 						.add(new DescriptiveItem<Integer>(word, errorMsg));
@@ -451,7 +472,7 @@ public class TwoPass {
 
 	public static void main(String[] args) throws IOException {
 
-		String filePath = "inputs/input-5.txt";
+		String filePath = "inputs/input-7.txt";
 		TwoPass tp = new TwoPass(filePath);
 
 	}
