@@ -43,19 +43,33 @@ public class TwoPass {
 	class Symbol {
 		public String symbol;
 		public Integer location;
+		public Integer moduleNumber;
+
+		public boolean inModuleUseList;
+		public boolean inInstructionList;
 
 		public Symbol(String symbol, Integer location) {
 			this.symbol = symbol;
 			this.location = location;
+
+			this.inModuleUseList = false;
+			this.inInstructionList = false;
 		}
 
 		public Symbol(String symbol) {
 			this(symbol, null);
 		}
 
+		public void isInUseList() {
+			this.inModuleUseList = true;
+		}
+
+		public void isInInstructionList() {
+			this.inInstructionList = true;
+		}
+
 		/**
-		 * Judges equality based solely on the symbol (the String), not the
-		 * location.
+		 * Judges equality based solely on the symbol (the String).
 		 */
 		public boolean equals(Symbol that) {
 			if (this.symbol.equals(that.symbol))
@@ -154,7 +168,7 @@ public class TwoPass {
 	class DescriptiveItem<T> {
 		public T item;
 		public String errorMsg;
-		
+
 		public DescriptiveItem(T item, String errorMsg) {
 			this.item = item;
 			this.errorMsg = errorMsg;
@@ -166,9 +180,7 @@ public class TwoPass {
 	private ArrayList<Module> modules = new ArrayList<Module>();
 	private TreeMap<String, DescriptiveItem<Symbol>> symbolTable = new TreeMap<String, DescriptiveItem<Symbol>>();
 	private ArrayList<DescriptiveItem<Integer>> memoryMap = new ArrayList<DescriptiveItem<Integer>>();
-	
-	private TreeMap<String, Integer> unusedSymbols = new TreeMap<String, Integer>();
-	
+
 	/**
 	 * Last-visited and incomplete items as the data is being processed.
 	 */
@@ -316,6 +328,7 @@ public class TwoPass {
 	}
 
 	private void initializeModule() {
+
 		// Get its start location on memory
 		// Equivalent to the final word of the previous module + 1
 		// (unless there are no modules; in that case, it's 0)
@@ -331,6 +344,7 @@ public class TwoPass {
 		// (it will be updated elsewhere through the reference to
 		// this.currModule)
 		this.modules.add(this.currModule);
+
 	}
 
 	private void analyzeLastModule() {
@@ -351,15 +365,24 @@ public class TwoPass {
 
 	private void setAbsoluteSymbolValues(Module module) {
 
-		List<Symbol> currSymbols = module.definitions;
+		List<Symbol> definedSymbols = module.definitions;
+		List<Symbol> usedSymbols = module.uses;
 
 		DescriptiveItem<Symbol> descriptiveSymbol;
 		String errorMsg;
 		int absoluteLoc;
-		for (Symbol currSymbol : currSymbols) {
+		for (Symbol currSymbol : definedSymbols) {
 			errorMsg = null;
 
-			if (this.symbolTable.containsKey(currSymbol.symbol)){
+			// Check if the defined symbols of the module are in its use list
+			for (Symbol useListSymbol : usedSymbols) {
+				if (currSymbol.equals(useListSymbol)) {
+					currSymbol.inModuleUseList = true;
+					break;
+				}
+			}
+
+			if (this.symbolTable.containsKey(currSymbol.symbol)) {
 				this.symbolTable.get(currSymbol.symbol).errorMsg = "Error: This variable is multiply defined; first value used.";
 				continue;
 			}
@@ -371,19 +394,22 @@ public class TwoPass {
 
 			absoluteLoc = currSymbol.location + module.startLocation;
 			currSymbol.location = absoluteLoc;
+			currSymbol.moduleNumber = this.modules.size() - 1;
 
 			// Update this.symbols (the global structure with the symbols)
 			descriptiveSymbol = new DescriptiveItem<Symbol>(currSymbol,
 					errorMsg);
-			this.symbolTable.put(descriptiveSymbol.item.symbol, descriptiveSymbol);
+			this.symbolTable.put(descriptiveSymbol.item.symbol,
+					descriptiveSymbol);
 		}
 
 	}
 
 	private void performSecondPass() {
 
+		Symbol relevantSymbol;
+		String relevantSymbolName;
 		String errorMsg;
-		String relevantSymbol;
 		Integer word;
 		Integer relativeAddress;
 		Integer absoluteAddress;
@@ -411,18 +437,22 @@ public class TwoPass {
 
 					} else {
 						// Map the address to the external symbol
-						relevantSymbol = module.uses.get(relativeAddress).symbol;
+						relevantSymbol = module.uses.get(relativeAddress);
+						relevantSymbolName = relevantSymbol.symbol;
 						
+						// Mark the symbol as used in the instruction list
+						relevantSymbol.inInstructionList = true;
 
-						if (this.symbolTable.get(relevantSymbol) == null) {
+						if (this.symbolTable.get(relevantSymbolName) == null) {
 							// Check if the symbol is globally defined
-							errorMsg = "Error: " + relevantSymbol
+							errorMsg = "Error: " + relevantSymbolName
 									+ " is not defined; zero used.";
 							instr.address = 0;
 
 						} else {
 							// Get its absolute address
-							absoluteAddress = this.symbolTable.get(relevantSymbol).item.location;
+							absoluteAddress = this.symbolTable
+									.get(relevantSymbolName).item.location;
 						}
 					}
 				}
@@ -442,9 +472,7 @@ public class TwoPass {
 		// Print the results
 		this.displayResults();
 	}
-	
-	
-	
+
 	private void displayResults() {
 
 		System.out.println("Symbol Table");
@@ -480,8 +508,7 @@ public class TwoPass {
 		}
 
 		System.out.println();
-		
-		
+
 	}
 
 	public static void main(String[] args) throws IOException {
@@ -491,7 +518,7 @@ public class TwoPass {
 		if (args.length > 0)
 			filePath = args[0];
 		else
-			filePath = "inputs/input-5.txt";
+			filePath = "inputs/input-7.txt";
 
 		new TwoPass(filePath);
 
