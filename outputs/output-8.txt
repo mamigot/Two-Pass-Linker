@@ -1,0 +1,6 @@
+Symbol Table
+
+Memory Map
+0:  1001 Error: External address exceeds length of use list; treated as immediate.
+1:  1004 Error: External address exceeds length of use list; treated as immediate.
+2:  1222 Error: External address exceeds length of use list; treated as immediate.
