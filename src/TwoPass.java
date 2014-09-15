@@ -150,23 +150,23 @@ public class TwoPass {
 			return sb.toString();
 		}
 	}
-	
-	class DescriptiveItem<T>{
+
+	class DescriptiveItem<T> {
 		public T item;
 		public String errorMsg;
-		
-		public DescriptiveItem(T item, String errorMsg){
+
+		public DescriptiveItem(T item, String errorMsg) {
 			this.item = item;
 			this.errorMsg = errorMsg;
 		}
 	}
-	
+
 	private int machineMemorySize = 600;
 
 	private ArrayList<Module> modules = new ArrayList<Module>();
 	private TreeMap<String, DescriptiveItem<Symbol>> symbols = new TreeMap<String, DescriptiveItem<Symbol>>();
 	private ArrayList<DescriptiveItem<Integer>> memoryMap = new ArrayList<DescriptiveItem<Integer>>();
-	
+
 	/**
 	 * Last-visited and incomplete items as the data is being processed.
 	 */
@@ -356,16 +356,17 @@ public class TwoPass {
 		int absoluteLoc;
 		for (Symbol curr : currSymbols) {
 			errorMsg = null;
-			
+
 			// Symbol defined without a relative location
-			// (should never happen)
+			// (this edge case wasn't even considered, but just in case)
 			if (curr.location == null)
 				curr.location = 0;
-			
+
 			absoluteLoc = curr.location + module.startLocation;
+			curr.location = absoluteLoc;
 
 			// Update this.symbols (the global structure with the symbols)
-			descriptiveSymbol = new DescriptiveItem<Symbol>(new Symbol(curr.symbol, absoluteLoc), errorMsg);
+			descriptiveSymbol = new DescriptiveItem<Symbol>(curr, errorMsg);
 			this.symbols.put(descriptiveSymbol.item.symbol, descriptiveSymbol);
 		}
 
@@ -383,7 +384,7 @@ public class TwoPass {
 			for (TextInstruction instr : module.textInstructions) {
 
 				errorMsg = null;
-				
+
 				if (instr.classification == 'R')
 					instr.address = instr.address + module.startLocation;
 
@@ -391,13 +392,20 @@ public class TwoPass {
 					// Need to get the actual address of the symbol
 					relevantSymbol = module.uses.get(instr.address).symbol;
 					// Get its absolute address from the global variable
+					
+					/** USE THIS TO CHECK IF THE SYMBOL IS DEFINED **/
+					if(this.symbols.get(relevantSymbol) == null)
+						System.out.println("no location here for symbol " + relevantSymbol);
+					/** **/
+					
 					instr.address = this.symbols.get(relevantSymbol).item.location;
 				}
 
 				word = instr.opcode * 1000 + instr.address;
 
 				// Add the word to the map
-				this.memoryMap.add(new DescriptiveItem<Integer>(word, errorMsg));
+				this.memoryMap
+						.add(new DescriptiveItem<Integer>(word, errorMsg));
 			}
 		}
 
@@ -406,17 +414,18 @@ public class TwoPass {
 	}
 
 	private void displayResults() {
-		
+
 		System.out.println("Symbol Table");
 
 		DescriptiveItem<Symbol> curr;
-		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbols.entrySet()){
+		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbols
+				.entrySet()) {
 			curr = entry.getValue();
 			System.out.print(curr.item.symbol + "=" + curr.item.location);
-			
-			if(curr.errorMsg != null)
+
+			if (curr.errorMsg != null)
 				System.out.print(" " + curr.errorMsg);
-			
+
 			System.out.println();
 		}
 
@@ -430,10 +439,10 @@ public class TwoPass {
 
 			address = memoryEntry.item;
 			System.out.printf("%-3s %s", counter + ":", address);
-			
-			if(memoryEntry.errorMsg != null)
+
+			if (memoryEntry.errorMsg != null)
 				System.out.print(" " + memoryEntry.errorMsg);
-			
+
 			System.out.println();
 			counter++;
 		}
@@ -442,7 +451,7 @@ public class TwoPass {
 
 	public static void main(String[] args) throws IOException {
 
-		String filePath = "inputs/input-4.txt";
+		String filePath = "inputs/input-5.txt";
 		TwoPass tp = new TwoPass(filePath);
 
 	}
