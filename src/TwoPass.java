@@ -374,9 +374,6 @@ public class TwoPass {
 
 	private void performSecondPass() {
 
-		// Update Relative and External instructions and
-		// assemble all of them into this.memoryMap
-
 		String errorMsg;
 		String relevantSymbol;
 		Integer word;
@@ -391,7 +388,7 @@ public class TwoPass {
 
 				if (instr.classification == 'R') {
 					absoluteAddress = relativeAddress + module.startLocation;
-					
+
 					if (relativeAddress > module.length) {
 						// Even if the check is for the relative address, the
 						// final address should be 0; that's why this sets
@@ -402,7 +399,6 @@ public class TwoPass {
 
 				} else if (instr.classification == 'E') {
 					if (module.uses.size() <= relativeAddress) {
-						// The external address is too large
 						errorMsg = "Error: External address exceeds length of use list; treated as immediate.";
 
 					} else {
@@ -410,15 +406,13 @@ public class TwoPass {
 						relevantSymbol = module.uses.get(relativeAddress).symbol;
 
 						if (this.symbols.get(relevantSymbol) == null) {
-							// Check if the referenced symbol is globally
-							// defined
+							// Check if the symbol is globally defined
 							errorMsg = "Error: " + relevantSymbol
 									+ " is not defined; zero used.";
 							instr.address = 0;
 
 						} else {
-							// Get its absolute address from the global
-							// symbols
+							// Get its absolute address
 							absoluteAddress = this.symbols.get(relevantSymbol).item.location;
 						}
 					}
@@ -477,9 +471,15 @@ public class TwoPass {
 	}
 
 	public static void main(String[] args) throws IOException {
+		
+		// Get the file path from the command line
+		String filePath;
+		if (args.length > 0)
+			filePath = args[0];
+		else
+			filePath = "inputs/input-5.txt";
 
-		String filePath = "inputs/input-5.txt";
-		TwoPass tp = new TwoPass(filePath);
+		new TwoPass(filePath);
 
 	}
 
