@@ -519,16 +519,22 @@ public class TwoPass {
 			counter++;
 		}
 
-		System.out.println();
-
 		/* Warnings */
 
+		boolean thereAreWarnings = false;
 		for (DescriptiveItem<Symbol> descSymbol : this.definedSymbolTable
-				.values())
+				.values()) {
+			// Avoid printing a line break if there are no warnings
+			if (!thereAreWarnings) {
+				System.out.println();
+				thereAreWarnings = true;
+			}
+			
 			if (!descSymbol.item.usedSomewhere)
 				System.out.println("Warning: " + descSymbol.item.symbol
 						+ " was defined in module "
 						+ descSymbol.item.moduleNumber + " but never used.");
+		}
 
 		int moduleCounter = 1;
 		for (Module currModule : this.modules) {
@@ -549,13 +555,14 @@ public class TwoPass {
 
 	public static void main(String[] args) throws IOException {
 
-		int inputFile = 2;
-
 		String filePath;
 		if (args.length > 0)
 			filePath = args[0];
 		else
-			filePath = "inputs/input-" + inputFile + ".txt";
+			throw new IllegalArgumentException("\nExpected path to input series of object modules.\nFor example, \n\njava TwoPass input-5.txt\n");
+			
+		// int inputFile = 2;
+		// filePath = "inputs/input-" + inputFile + ".txt";
 
 		new TwoPass(filePath);
 
