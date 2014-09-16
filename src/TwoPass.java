@@ -97,9 +97,8 @@ public class TwoPass {
 		public List<Symbol> uses;
 		public List<TextInstruction> textInstructions;
 
-		// Used to determine if variables in a use list
-		// are present in the text
-		public List<String> trulyUsedChecker;
+		// Used to determine if variables in a use list are present in the text
+		public List<String> unusedInTextSymbols;
 
 		public Module(int startLocation) {
 			this.startLocation = startLocation;
@@ -110,7 +109,7 @@ public class TwoPass {
 			this.uses = new ArrayList<Symbol>();
 			this.textInstructions = new ArrayList<TextInstruction>();
 
-			this.trulyUsedChecker = new ArrayList<String>();
+			this.unusedInTextSymbols = new ArrayList<String>();
 		}
 
 		public void addDefinition(Symbol symbol) {
@@ -174,21 +173,22 @@ public class TwoPass {
 	private int machineMemorySize = 600;
 
 	private ArrayList<Module> modules = new ArrayList<Module>();
-	private TreeMap<String, DescriptiveItem<Symbol>> symbolTable = new TreeMap<String, DescriptiveItem<Symbol>>();
+	private TreeMap<String, DescriptiveItem<Symbol>> definedSymbolTable = new TreeMap<String, DescriptiveItem<Symbol>>();
 	private ArrayList<DescriptiveItem<Integer>> memoryMap = new ArrayList<DescriptiveItem<Integer>>();
 
-	/**
-	 * Last-visited and incomplete items as the data is being processed.
-	 */
+	// Last-visited and incomplete items as the data is being processed
+	// (used to hold parts of the symbols / instructions / module across
+	// iterations).
 	private Symbol tempSymbol;
 	private TextInstruction tempInstruction;
 	private Module currModule;
 
 	public TwoPass(String inputFilePath) throws FileNotFoundException {
-		// Save all of the content into a variable
+		// Save all of the file content into a variable
 		Scanner scanner = new Scanner(new File(inputFilePath));
 		String content = scanner.useDelimiter("\\A").next();
-		// Identifies the tokens using RegEx
+
+		// Identify the tokens using RegEx
 		Matcher matcher = Pattern.compile("[\\d\\w]+").matcher(content);
 
 		// Type that will be visited first
@@ -317,10 +317,8 @@ public class TwoPass {
 			String symbol = this.tempSymbol.symbol;
 			int location = Integer.parseInt(element);
 
-			// Full symbol
+			// Assemble the full symbol and add it to the modules!
 			this.tempSymbol = new Symbol(symbol, location);
-
-			// Add it to the modules
 			this.currModule.addDefinition(this.tempSymbol);
 		}
 
@@ -349,9 +347,6 @@ public class TwoPass {
 
 			// Add it to the modules
 			this.currModule.addInstruction(this.tempInstruction);
-
-			// Don't need this anymore
-			this.tempInstruction = null;
 		}
 
 	}
@@ -362,11 +357,11 @@ public class TwoPass {
 
 		DescriptiveItem<Symbol> itemSymbolTable;
 		String errorMsg;
-		int absoluteLoc;
+		Integer absoluteLoc;
 		for (Symbol currSymbol : definedSymbols) {
 			errorMsg = null;
 
-			itemSymbolTable = this.symbolTable.get(currSymbol.symbol);
+			itemSymbolTable = this.definedSymbolTable.get(currSymbol.symbol);
 			if (itemSymbolTable != null) {
 				itemSymbolTable
 						.setErrorMsg("Error: This variable is multiply defined; first value used.");
@@ -383,7 +378,8 @@ public class TwoPass {
 
 			// Update the global structure with the symbols
 			itemSymbolTable = new DescriptiveItem<Symbol>(currSymbol, errorMsg);
-			this.symbolTable.put(itemSymbolTable.item.symbol, itemSymbolTable);
+			this.definedSymbolTable.put(itemSymbolTable.item.symbol,
+					itemSymbolTable);
 		}
 
 	}
@@ -399,9 +395,12 @@ public class TwoPass {
 		Integer absoluteAddress;
 		for (Module module : this.modules) {
 
+			// In order to verify that the variables in a module's use list are
+			// in the text, add them all to a structure and later remove them
+			// from it as they are found in the text.
 			for (Symbol use : module.uses)
-				if (this.symbolTable.containsKey(use.symbol))
-					module.trulyUsedChecker.add(use.symbol);
+				if (this.definedSymbolTable.containsKey(use.symbol))
+					module.unusedInTextSymbols.add(use.symbol);
 
 			for (TextInstruction instr : module.textInstructions) {
 
@@ -424,15 +423,21 @@ public class TwoPass {
 					} else {
 						// Map the address to the external symbol
 						symbolName = module.uses.get(relativeAddress).symbol;
+						itemSymbolTable = this.definedSymbolTable
+								.get(symbolName);
 
-						itemSymbolTable = this.symbolTable.get(symbolName);
 						if (itemSymbolTable == null) {
 							errorMsg = "Error: " + symbolName
 									+ " is not defined; zero used.";
 							instr.address = 0;
 
 						} else {
-							module.trulyUsedChecker.remove(symbolName);
+							// Mark the symbols as "used" in the test if it's
+							// defined, which is the same as removing the
+							// "unused" mark from them. If the symbol was not
+							// defined (not in this.definedSymbolTable), don't
+							// do anything.
+							module.unusedInTextSymbols.remove(symbolName);
 
 							symbol = itemSymbolTable.item;
 
@@ -442,18 +447,21 @@ public class TwoPass {
 								instr.address = 0;
 
 							} else {
+								// Mark actually defined symbol as used
+								// somewhere in the program
 								symbol.usedSomewhere = true;
 
 								// Get its absolute address
-								absoluteAddress = this.symbolTable
+								absoluteAddress = this.definedSymbolTable
 										.get(symbolName).item.location;
 							}
 						}
 					}
 				}
 
+				// This check applies to all instructions but the Immediate ones
+				// (immediate addresses are often not really addresses).
 				if (instr.classification != 'I') {
-					// Immediate addresses are often not really addresses
 					if (absoluteAddress >= this.machineMemorySize) {
 						errorMsg = "Error: Absolute address exceeds machine size; zero used.";
 						absoluteAddress = 0;
@@ -478,7 +486,7 @@ public class TwoPass {
 		System.out.println("Symbol Table");
 
 		DescriptiveItem<Symbol> currEntry;
-		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbolTable
+		for (Entry<String, DescriptiveItem<Symbol>> entry : this.definedSymbolTable
 				.entrySet()) {
 			currEntry = entry.getValue();
 
@@ -515,7 +523,8 @@ public class TwoPass {
 
 		/* Warnings */
 
-		for (DescriptiveItem<Symbol> descSymbol : this.symbolTable.values())
+		for (DescriptiveItem<Symbol> descSymbol : this.definedSymbolTable
+				.values())
 			if (!descSymbol.item.usedSomewhere)
 				System.out.println("Warning: " + descSymbol.item.symbol
 						+ " was defined in module "
@@ -524,7 +533,7 @@ public class TwoPass {
 		int moduleCounter = 1;
 		for (Module currModule : this.modules) {
 
-			for (String badSymbol : currModule.trulyUsedChecker) {
+			for (String badSymbol : currModule.unusedInTextSymbols) {
 				System.out
 						.println("Warning: In module "
 								+ moduleCounter
@@ -540,7 +549,7 @@ public class TwoPass {
 
 	public static void main(String[] args) throws IOException {
 
-		int inputFile = 9;
+		int inputFile = 2;
 
 		String filePath;
 		if (args.length > 0)
