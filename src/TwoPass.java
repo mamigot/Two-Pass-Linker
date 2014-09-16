@@ -43,6 +43,9 @@ public class TwoPass {
 	class Symbol {
 		public String symbol;
 		public Integer location;
+		/**
+		 * Starts from 1
+		 */
 		public Integer moduleNumber;
 
 		public boolean inModuleUseList;
@@ -79,9 +82,15 @@ public class TwoPass {
 		}
 
 		public String toString() {
-			if (this.location != null)
-				return this.symbol + "=" + this.location;
-			else
+			if (this.location != null) {
+				StringBuilder sb = new StringBuilder();
+				sb.append(this.symbol + "=" + this.location + "\n");
+				sb.append("inModuleUseList = " + this.inModuleUseList + "\n");
+				sb.append("inInstructionList = " + this.inInstructionList
+						+ "\n");
+				return sb.toString();
+
+			} else
 				return this.symbol;
 		}
 	}
@@ -140,6 +149,14 @@ public class TwoPass {
 
 			this.length++;
 			this.endLocation = this.startLocation + this.length - 1;
+		}
+
+		public Symbol getDefinitionsSymbol(String symbolName) {
+			for (Symbol curr : this.definitions)
+				if (curr.symbol.equals(symbolName))
+					return curr;
+
+			return null;
 		}
 
 		public String toString() {
@@ -366,23 +383,12 @@ public class TwoPass {
 	private void setAbsoluteSymbolValues(Module module) {
 
 		List<Symbol> definedSymbols = module.definitions;
-		List<Symbol> usedSymbols = module.uses;
 
 		DescriptiveItem<Symbol> descriptiveSymbol;
 		String errorMsg;
 		int absoluteLoc;
 		for (Symbol currSymbol : definedSymbols) {
 			errorMsg = null;
-
-			// Check if the defined symbols of the module are in its use list
-			for (Symbol useListSymbol : usedSymbols) {
-				if (currSymbol.equals(useListSymbol)) {
-					currSymbol.inModuleUseList = true;
-					System.out.println("HAHAHAHAHA");
-					System.exit(1);
-					break;
-				}
-			}
 
 			if (this.symbolTable.containsKey(currSymbol.symbol)) {
 				this.symbolTable.get(currSymbol.symbol).errorMsg = "Error: This variable is multiply defined; first value used.";
@@ -396,7 +402,7 @@ public class TwoPass {
 
 			absoluteLoc = currSymbol.location + module.startLocation;
 			currSymbol.location = absoluteLoc;
-			currSymbol.moduleNumber = this.modules.size() - 1;
+			currSymbol.moduleNumber = this.modules.size();
 
 			// Update this.symbols (the global structure with the symbols)
 			descriptiveSymbol = new DescriptiveItem<Symbol>(currSymbol,
@@ -439,19 +445,22 @@ public class TwoPass {
 
 					} else {
 						// Map the address to the external symbol
-						relevantSymbol = module.uses.get(relativeAddress);
-						relevantSymbolName = relevantSymbol.symbol;
+						relevantSymbolName = module.uses.get(relativeAddress).symbol;
 
-						// Mark the symbol as used in the instruction list
-						relevantSymbol.inInstructionList = true;
+						// Globally defined symbol
+						relevantSymbol = this.symbolTable
+								.get(relevantSymbolName).item;
 
-						if (this.symbolTable.get(relevantSymbolName) == null) {
+						if (relevantSymbol == null) {
 							// Check if the symbol is globally defined
 							errorMsg = "Error: " + relevantSymbolName
 									+ " is not defined; zero used.";
 							instr.address = 0;
 
 						} else {
+							// Mark the symbol as used in the instruction list
+							relevantSymbol.inInstructionList = true;
+
 							// Get its absolute address
 							absoluteAddress = this.symbolTable
 									.get(relevantSymbolName).item.location;
@@ -459,8 +468,10 @@ public class TwoPass {
 					}
 				}
 
-				if (instr.classification == 'E' || instr.classification == 'E') {
-					if (absoluteAddress > this.machineMemorySize) {
+				if (instr.classification != 'I') {
+					// Immediate addresses are often not really addresses
+					// (just numbers)
+					if (absoluteAddress >= this.machineMemorySize) {
 						errorMsg = "Error: Absolute address exceeds machine size; zero used.";
 						absoluteAddress = 0;
 					}
@@ -470,6 +481,23 @@ public class TwoPass {
 				// Add the word to the global map
 				this.memoryMap
 						.add(new DescriptiveItem<Integer>(word, errorMsg));
+			}
+		}
+
+		// Check if definitions are used in their modules
+		Symbol currSymbol;
+		Module currModule;
+		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbolTable
+				.entrySet()) {
+
+			currSymbol = entry.getValue().item;
+			currModule = this.modules.get(currSymbol.moduleNumber - 1);
+
+			for (Symbol currUse : currModule.uses) {
+				if (currSymbol.equals(currUse)) {
+					currSymbol.inModuleUseList = true;
+					break;
+				}
 			}
 		}
 
@@ -514,28 +542,27 @@ public class TwoPass {
 
 		System.out.println();
 
+		// for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbolTable
+		// .entrySet()) {
+		//
+		// Symbol currSymbol = entry.getValue().item;
+		// System.out.println(currSymbol);
+		// System.out.println();
+		//
+		// }
+
 		Symbol currSymbol;
 		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbolTable
 				.entrySet()) {
 
 			currSymbol = entry.getValue().item;
 
-			if (currSymbol.inModuleUseList == false) {
-				System.out
-						.println("Warning: In module "
-								+ currSymbol.moduleNumber
-								+ " "
-								+ currSymbol.symbol
-								+ " appeared in the use list but was not actually used.");
-			} else {
-				// It's in a use list... but is it in the instructions?
-				if (currSymbol.inInstructionList == false) {
-					System.out.println("Warning: " + currSymbol.symbol
-							+ " was defined in module "
-							+ currSymbol.moduleNumber + " but never used.");
-				}
+			// It's in a use list... but is it in the instructions?
+			if (currSymbol.inInstructionList == false) {
+				System.out.println("Warning: " + currSymbol.symbol
+						+ " was defined in module " + currSymbol.moduleNumber
+						+ " but never used.");
 			}
-
 		}
 
 	}
@@ -547,7 +574,7 @@ public class TwoPass {
 		if (args.length > 0)
 			filePath = args[0];
 		else
-			filePath = "inputs/input-3.txt";
+			filePath = "inputs/input-7.txt";
 
 		new TwoPass(filePath);
 
