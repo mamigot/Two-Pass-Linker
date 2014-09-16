@@ -47,17 +47,14 @@ public class TwoPass {
 		 * Starts from 1
 		 */
 		public Integer moduleNumber;
-		public Module module;
 
-		public boolean usedInOwnList;
-		public boolean usedAnywhere;
+		public boolean usedSomewhere;
 
 		public Symbol(String symbol, Integer location) {
 			this.symbol = symbol;
 			this.location = location;
 
-			this.usedInOwnList = true;
-			this.usedAnywhere = false;
+			this.usedSomewhere = false;
 		}
 
 		public Symbol(String symbol) {
@@ -78,9 +75,8 @@ public class TwoPass {
 			if (this.location != null) {
 				StringBuilder sb = new StringBuilder();
 				sb.append(this.symbol + "=" + this.location + "\n");
-				sb.append("inModuleUseList = " + this.usedInOwnList + "\n");
-				sb.append("inInstructionList = " + this.usedAnywhere
-						+ "\n");
+				// sb.append("inModuleUseList = " + this.usedInOwnList + "\n");
+				sb.append("inInstructionList = " + this.usedSomewhere + "\n");
 				sb.append("module number = " + this.moduleNumber + "\n");
 				return sb.toString();
 
@@ -397,7 +393,6 @@ public class TwoPass {
 			absoluteLoc = currSymbol.location + module.startLocation;
 			currSymbol.location = absoluteLoc;
 			currSymbol.moduleNumber = this.modules.size();
-			currSymbol.module = this.modules.get(currSymbol.moduleNumber - 1);
 
 			// Update this.symbols (the global structure with the symbols)
 			descriptiveSymbol = new DescriptiveItem<Symbol>(currSymbol,
@@ -441,6 +436,8 @@ public class TwoPass {
 					} else {
 						// Map the address to the external symbol
 						relevantSymbolName = module.uses.get(relativeAddress).symbol;
+						// System.out.println("problematic symbol: " +
+						// relevantSymbolName);
 
 						// Globally defined symbol
 						relevantSymbol = this.symbolTable
@@ -452,14 +449,7 @@ public class TwoPass {
 							instr.address = 0;
 
 						} else {
-							relevantSymbol.usedAnywhere = true;
-							// Sureeee, it's usedAnywhere, but is it used
-							// on the module that has it on its use list?
-							// (leave it alone if it's equal to false from
-							// a previous iteration)
-							if(relevantSymbol.usedInOwnList){
-								
-							}
+							relevantSymbol.usedSomewhere = true;
 
 							// Get its absolute address
 							absoluteAddress = this.symbolTable
@@ -482,23 +472,6 @@ public class TwoPass {
 				this.memoryMap
 						.add(new DescriptiveItem<Integer>(word, errorMsg));
 			}
-		}
-
-		// Check if the symbols in the list of definitions are in
-		// their respective module's use list
-		Symbol currSymbol;
-		int counter = 1;
-		for (Module module : this.modules) {
-			for (Symbol useSymbol : module.uses) {
-				currSymbol = this.symbolTable.get(useSymbol.symbol).item;
-
-				if (!currSymbol.usedInOwnList) {
-					currSymbol.usedInOwnList = true;
-					currSymbol.moduleNumber = counter;
-				}
-			}
-
-			counter++;
 		}
 
 		// Print the results
@@ -547,58 +520,81 @@ public class TwoPass {
 				.entrySet()) {
 
 			currSymbol = entry.getValue().item;
-			
-			System.out.println(currSymbol);
 
-			if (!currSymbol.usedAnywhere && !currSymbol.usedInOwnList)
+			// System.out.println(currSymbol);
+
+			if (!currSymbol.usedSomewhere)
 				System.out.println("Warning: " + currSymbol.symbol
 						+ " was defined in module " + currSymbol.moduleNumber
 						+ " but never used.");
 
-			if (!currSymbol.usedAnywhere && currSymbol.usedInOwnList)
-				System.out
-						.println("Warning: In module "
-								+ currSymbol.moduleNumber
-								+ " "
-								+ currSymbol.symbol
-								+ " appeared in the use list but was not actually used.");
-
-			// if (currSymbol.inModuleUseList) {
-			// if (!currSymbol.inInstructionList) {
-//			System.out.println("Warning: In module " + currSymbol.moduleNumber
-//					+ " " + currSymbol.symbol
-//					+ " appeared in the use list but was not actually used.");
-			// } else {
-			// System.out.println("Warning: " + currSymbol.symbol
-			// + " was defined in module "
-			// + currSymbol.moduleNumber + " but never used.");
-			// }
-			// }
-
 			/*
-			 * if (!currSymbol.inInstructionList && !currSymbol.inModuleUseList)
-			 * { System.out.println("Warning: " + currSymbol.symbol +
-			 * " was defined in module " + currSymbol.moduleNumber +
-			 * " but never used."); } else if (currSymbol.inModuleUseList &&
-			 * !currSymbol.inInstructionList) { System.out
-			 * .println("Warning: In module " + currSymbol.moduleNumber + " " +
-			 * currSymbol.symbol +
-			 * " appeared in the use list but was not actually used."); }
+			 * else if (!currSymbol.usedSomewhere && currSymbol.usedInOwnList)
+			 * System.out .println("Warning: In module " +
+			 * currSymbol.moduleNumber + " " + currSymbol.symbol +
+			 * " appeared in the use list but was not actually used.");
 			 */
 		}
+
+	}
+
+	public boolean interpretResults(int usedInput) throws FileNotFoundException {
+
+		Scanner scanner;
+
+		scanner = new Scanner(new File("programOutput.txt"));
+		String programOutput = scanner.useDelimiter("\\A").next();
+
+		scanner = new Scanner(new File("outputs/output-" + usedInput + ".txt"));
+		String expectedOutput = scanner.useDelimiter("\\A").next();
+
+		Pattern matcher = Pattern.compile("[\\d\\w]+");
+
+		Matcher po = matcher.matcher(programOutput);
+		Matcher eo = matcher.matcher(expectedOutput);
+
+		while (po.find() || eo.find()) {
+			try {
+				if (!po.group().equals(eo.group()))
+					return false;
+			} catch (IllegalStateException e) {
+				return false;
+			}
+		}
+
+		return true;
 
 	}
 
 	public static void main(String[] args) throws IOException {
 
 		// Get the file path from the command line
+
+		// Input number
+		int inputFile = 1;
+
 		String filePath;
 		if (args.length > 0)
 			filePath = args[0];
 		else
-			filePath = "inputs/input-6.txt";
+			filePath = "inputs/input-" + inputFile + ".txt";
 
-		new TwoPass(filePath);
+		TwoPass tp = new TwoPass(filePath);
+
+//		for (int i = 6; i < 10; i++) {
+//			filePath = "inputs/input-" + i + ".txt";
+//			tp = new TwoPass(filePath);
+//			boolean res = tp.interpretResults(inputFile);
+//
+//			System.out.println("\n");
+//			System.out.print("FILE ");
+//			if (res) {
+//				System.out.println(i + "- CORRECT");
+//			} else {
+//				System.out.println(i + "- NO MATCH");
+//			}
+//			System.out.println("\n");
+//		}
 
 	}
 
