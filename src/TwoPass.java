@@ -12,43 +12,40 @@ import java.util.regex.Pattern;
 // scp -r TwoPassLinker/ ma2786@i5.nyu.edu:
 public class TwoPass {
 
-	enum Data {
+	private enum DataKind {
+		// Items found in module
 		DEFINITIONS, USES, INSTRUCTIONS,
-
-		// Subcategories that characterize a definition
+		// Definition sub-categories
 		SYMBOL, LOCATION,
-		// Subcategories that characterize an instruction
-		// (for example, in "R 1004", "R" is the type and "1004" is the word,
-		// which is made of an opcode and an address)
+		// Instruction sub-categories
 		TYPE, WORD;
 
-		static Data current = getFirst();
+		private static DataKind current = getFirst();
 
-		public static Data getFirst() {
-			return current = Data.DEFINITIONS;
+		public static DataKind getFirst() {
+			return current = DataKind.DEFINITIONS;
 		}
 
-		public static Data getNext() {
-			if (current == Data.DEFINITIONS)
-				return current = Data.USES;
+		public static DataKind getNext() {
+			if (current == DataKind.DEFINITIONS)
+				return current = DataKind.USES;
 
-			else if (current == Data.USES)
-				return current = Data.INSTRUCTIONS;
+			else if (current == DataKind.USES)
+				return current = DataKind.INSTRUCTIONS;
 
 			else
-				return current = Data.DEFINITIONS;
+				return current = DataKind.DEFINITIONS;
 		}
 	}
 
-	class Symbol {
-		public String symbol;
-		public Integer location;
-		/**
-		 * Starts from 1
-		 */
-		public Integer moduleNumber;
+	private class Symbol {
+		private String symbol;
+		private Integer location;
 
-		public boolean usedSomewhere;
+		// Starting from 1
+		private Integer moduleNumber;
+		// True if it appears on the text
+		private boolean usedSomewhere;
 
 		public Symbol(String symbol, Integer location) {
 			this.symbol = symbol;
@@ -61,34 +58,19 @@ public class TwoPass {
 			this(symbol, null);
 		}
 
-		/**
-		 * Judges equality based solely on the symbol (the String).
-		 */
-		public boolean equals(Symbol that) {
-			if (this.symbol.equals(that.symbol))
-				return true;
-			else
-				return false;
-		}
-
 		public String toString() {
-			if (this.location != null) {
-				StringBuilder sb = new StringBuilder();
-				sb.append(this.symbol + "=" + this.location + "\n");
-				// sb.append("inModuleUseList = " + this.usedInOwnList + "\n");
-				sb.append("inInstructionList = " + this.usedSomewhere + "\n");
-				sb.append("module number = " + this.moduleNumber + "\n");
-				return sb.toString();
+			StringBuilder sb = new StringBuilder();
+			sb.append(this.symbol + "=" + this.location + "\n");
+			sb.append("module number = " + this.moduleNumber + "\n");
 
-			} else
-				return this.symbol;
+			return sb.toString();
 		}
 	}
 
-	class TextInstruction {
-		public Character classification;
-		public Integer opcode;
-		public Integer address;
+	private class TextInstruction {
+		private Character classification;
+		private Integer opcode;
+		private Integer address;
 
 		public TextInstruction(Character classification, Integer opcode,
 				Integer address) {
@@ -106,20 +88,21 @@ public class TwoPass {
 		}
 	}
 
-	class Module {
-		public int startLocation;
-		public int endLocation;
-		public int length;
+	private class Module {
+		private int startLocation;
+		private int endLocation;
+		private int length;
 
 		public List<Symbol> definitions;
 		public List<Symbol> uses;
 		public List<TextInstruction> textInstructions;
 
-		public List<String> lies;
+		// Used to determine if variables in a use list
+		// are present in the text
+		public List<String> trulyUsedChecker;
 
 		public Module(int startLocation) {
 			this.startLocation = startLocation;
-
 			this.endLocation = startLocation;
 			this.length = 0;
 
@@ -127,7 +110,7 @@ public class TwoPass {
 			this.uses = new ArrayList<Symbol>();
 			this.textInstructions = new ArrayList<TextInstruction>();
 
-			this.lies = new ArrayList<String>();
+			this.trulyUsedChecker = new ArrayList<String>();
 		}
 
 		public void addDefinition(Symbol symbol) {
@@ -145,15 +128,8 @@ public class TwoPass {
 			this.endLocation = this.startLocation + this.length - 1;
 		}
 
-		public Symbol getDefinitionsSymbol(String symbolName) {
-			for (Symbol curr : this.definitions)
-				if (curr.symbol.equals(symbolName))
-					return curr;
-
-			return null;
-		}
-
 		public String toString() {
+
 			StringBuilder sb = new StringBuilder();
 
 			sb.append("Start: " + this.startLocation + "\n");
@@ -173,15 +149,24 @@ public class TwoPass {
 				sb.append("\t" + instr.classification + ": " + instr + "\n");
 
 			return sb.toString();
+
 		}
 	}
 
-	class DescriptiveItem<T> {
-		public T item;
-		public String errorMsg;
+	private class DescriptiveItem<T> {
+		private T item;
+		private String errorMsg;
 
 		public DescriptiveItem(T item, String errorMsg) {
 			this.item = item;
+			this.errorMsg = errorMsg;
+		}
+
+		public String getErrorMsg() {
+			return this.errorMsg;
+		}
+
+		public void setErrorMsg(String errorMsg) {
 			this.errorMsg = errorMsg;
 		}
 	}
@@ -207,7 +192,7 @@ public class TwoPass {
 		Matcher matcher = Pattern.compile("[\\d\\w]+").matcher(content);
 
 		// Type that will be visited first
-		Data nextType = Data.getFirst();
+		DataKind nextType = DataKind.getFirst();
 
 		int remainingDefinitions = 0;
 		int remainingUses = 0;
@@ -219,13 +204,13 @@ public class TwoPass {
 
 			if (remainingDefinitions > 0) {
 				if (remainingDefinitions % 2 == 0)
-					this.processDefinition(token, Data.SYMBOL);
+					this.processDefinition(token, DataKind.SYMBOL);
 				else
-					this.processDefinition(token, Data.LOCATION);
+					this.processDefinition(token, DataKind.LOCATION);
 
 				remainingDefinitions--;
 				if (remainingDefinitions == 0)
-					nextType = Data.getNext();
+					nextType = DataKind.getNext();
 				continue;
 			}
 
@@ -234,19 +219,19 @@ public class TwoPass {
 
 				remainingUses--;
 				if (remainingUses == 0)
-					nextType = Data.getNext();
+					nextType = DataKind.getNext();
 				continue;
 			}
 
 			else if (remainingInstructions > 0) {
 				if (remainingInstructions % 2 == 0)
-					this.processInstruction(token, Data.TYPE);
+					this.processInstruction(token, DataKind.TYPE);
 				else
-					this.processInstruction(token, Data.WORD);
+					this.processInstruction(token, DataKind.WORD);
 
 				remainingInstructions--;
 				if (remainingInstructions == 0)
-					nextType = Data.getNext();
+					nextType = DataKind.getNext();
 				continue;
 			}
 
@@ -255,7 +240,7 @@ public class TwoPass {
 			else {
 				// Start a new module when the next type is DEFINITIONS
 				// regardless of whether there are actual definitions or not
-				if (nextType == Data.DEFINITIONS) {
+				if (nextType == DataKind.DEFINITIONS) {
 					this.analyzeLastModule();
 					this.initializeModule();
 				}
@@ -264,17 +249,18 @@ public class TwoPass {
 				int numNewElements = Integer.parseInt(token);
 				// Nothing to see here... move along
 				if (numNewElements == 0)
-					nextType = Data.getNext();
+					nextType = DataKind.getNext();
 
 				// Definitions come in groups of two (symbol + location)
-				if (nextType == Data.DEFINITIONS)
+				if (nextType == DataKind.DEFINITIONS)
 					remainingDefinitions = numNewElements * 2;
 
-				else if (nextType == Data.USES)
+				// Uses come one at a time
+				else if (nextType == DataKind.USES)
 					remainingUses = numNewElements;
 
 				// Instructions come in groups of two (type + word)
-				else if (nextType == Data.INSTRUCTIONS)
+				else if (nextType == DataKind.INSTRUCTIONS)
 					remainingInstructions = numNewElements * 2;
 			}
 		}
@@ -287,12 +273,47 @@ public class TwoPass {
 		this.performSecondPass();
 	}
 
-	private void processDefinition(String element, Data partType) {
+	private void initializeModule() {
 
-		if (partType == Data.SYMBOL) {
+		// Get its starting location on memory, which is equivalent to the final
+		// word of the previous module + 1 (if there are no modules, it's 0)
+		int startLocation = 0;
+
+		if (!this.modules.isEmpty()) {
+			int lastModuleIndex = this.modules.size() - 1;
+			startLocation = this.modules.get(lastModuleIndex).endLocation + 1;
+		}
+
+		this.currModule = new Module(startLocation);
+		// Add it to the global list of modules (it will be updated elsewhere
+		// through the reference to this.currModule)
+		this.modules.add(this.currModule);
+
+	}
+
+	private void analyzeLastModule() {
+
+		// Assuming that modules have been analyzed (that this isn't the
+		// start of the program) analyzes the last module by pushing the defined
+		// variables to a dedicated global structure
+
+		if (this.modules.isEmpty())
+			return;
+
+		Module lastModule = this.modules.get(this.modules.size() - 1);
+
+		this.setAbsoluteSymbolValues(lastModule);
+
+	}
+
+	private void processDefinition(String element, DataKind partType) {
+
+		if (partType == DataKind.SYMBOL) {
+			// Save it onto the temporary variable (it will be seen again when
+			// interpreting the LOCATION part of a symbol)
 			this.tempSymbol = new Symbol(element);
 
-		} else if (partType == Data.LOCATION) {
+		} else if (partType == DataKind.LOCATION) {
 			String symbol = this.tempSymbol.symbol;
 			int location = Integer.parseInt(element);
 
@@ -301,9 +322,6 @@ public class TwoPass {
 
 			// Add it to the modules
 			this.currModule.addDefinition(this.tempSymbol);
-
-			// Don't need this anymore
-			this.tempSymbol = null;
 		}
 
 	}
@@ -314,13 +332,13 @@ public class TwoPass {
 
 	}
 
-	private void processInstruction(String element, Data partType) {
+	private void processInstruction(String element, DataKind partType) {
 
-		if (partType == Data.TYPE) {
+		if (partType == DataKind.TYPE) {
 			char classification = element.charAt(0);
 			this.tempInstruction = new TextInstruction(classification);
 
-		} else if (partType == Data.WORD) {
+		} else if (partType == DataKind.WORD) {
 			char classification = this.tempInstruction.classification;
 			int opcode = Character.getNumericValue(element.charAt(0));
 			int address = Integer.parseInt(element.substring(1));
@@ -338,59 +356,24 @@ public class TwoPass {
 
 	}
 
-	private void initializeModule() {
-
-		// Get its start location on memory
-		// Equivalent to the final word of the previous module + 1
-		// (unless there are no modules; in that case, it's 0)
-		int startLocation = 0;
-
-		if (!this.modules.isEmpty()) {
-			int lastModuleIndex = this.modules.size() - 1;
-			startLocation = this.modules.get(lastModuleIndex).endLocation + 1;
-		}
-
-		this.currModule = new Module(startLocation);
-		// Add this to the global list of modules
-		// (it will be updated elsewhere through the reference to
-		// this.currModule)
-		this.modules.add(this.currModule);
-
-	}
-
-	private void analyzeLastModule() {
-
-		// Assuming that modules have been analyzed (that this isn't the
-		// start of the program), analyzes the last module by:
-		// 1. Pushing the defined variables to a dedicated global list
-		// 2. Error detection and arbitrary limits analysis
-
-		if (this.modules.isEmpty())
-			return;
-
-		Module lastModule = this.modules.get(this.modules.size() - 1);
-
-		this.setAbsoluteSymbolValues(lastModule);
-
-	}
-
 	private void setAbsoluteSymbolValues(Module module) {
 
 		List<Symbol> definedSymbols = module.definitions;
 
-		DescriptiveItem<Symbol> descriptiveSymbol;
+		DescriptiveItem<Symbol> itemSymbolTable;
 		String errorMsg;
 		int absoluteLoc;
 		for (Symbol currSymbol : definedSymbols) {
 			errorMsg = null;
 
-			if (this.symbolTable.containsKey(currSymbol.symbol)) {
-				this.symbolTable.get(currSymbol.symbol).errorMsg = "Error: This variable is multiply defined; first value used.";
+			itemSymbolTable = this.symbolTable.get(currSymbol.symbol);
+			if (itemSymbolTable != null) {
+				itemSymbolTable
+						.setErrorMsg("Error: This variable is multiply defined; first value used.");
 				continue;
 			}
 
-			// Symbol defined without a relative location
-			// (this edge case wasn't even considered, but just in case)
+			// In case symbol is defined without a relative location
 			if (currSymbol.location == null)
 				currSymbol.location = 0;
 
@@ -398,29 +381,27 @@ public class TwoPass {
 			currSymbol.location = absoluteLoc;
 			currSymbol.moduleNumber = this.modules.size();
 
-			// Update this.symbols (the global structure with the symbols)
-			descriptiveSymbol = new DescriptiveItem<Symbol>(currSymbol,
-					errorMsg);
-			this.symbolTable.put(descriptiveSymbol.item.symbol,
-					descriptiveSymbol);
+			// Update the global structure with the symbols
+			itemSymbolTable = new DescriptiveItem<Symbol>(currSymbol, errorMsg);
+			this.symbolTable.put(itemSymbolTable.item.symbol, itemSymbolTable);
 		}
 
 	}
 
 	private void performSecondPass() {
 
-		Symbol relevantSymbol;
-		String relevantSymbolName;
+		DescriptiveItem<Symbol> itemSymbolTable;
+		Symbol symbol;
+		String symbolName;
 		String errorMsg;
 		Integer word;
 		Integer relativeAddress;
 		Integer absoluteAddress;
 		for (Module module : this.modules) {
 
-			// Add symbol Strings
 			for (Symbol use : module.uses)
 				if (this.symbolTable.containsKey(use.symbol))
-					module.lies.add(use.symbol);
+					module.trulyUsedChecker.add(use.symbol);
 
 			for (TextInstruction instr : module.textInstructions) {
 
@@ -432,9 +413,6 @@ public class TwoPass {
 					absoluteAddress = relativeAddress + module.startLocation;
 
 					if (relativeAddress > module.length) {
-						// Even if the check is for the relative address, the
-						// final address should be 0; that's why this sets
-						// absoluteAddress
 						errorMsg = "Error: Relative address exceeds module size; zero used.";
 						absoluteAddress = 0;
 					}
@@ -445,36 +423,30 @@ public class TwoPass {
 
 					} else {
 						// Map the address to the external symbol
-						relevantSymbolName = module.uses.get(relativeAddress).symbol;
-						// System.out.println("problematic symbol: " +
-						// relevantSymbolName);
+						symbolName = module.uses.get(relativeAddress).symbol;
 
-						/*
-						 * OPTIMIZE THIS
-						 */
-						// Globally defined symbol
-						if (this.symbolTable.get(relevantSymbolName) == null) {
-							errorMsg = "Error: " + relevantSymbolName
+						itemSymbolTable = this.symbolTable.get(symbolName);
+						if (itemSymbolTable == null) {
+							errorMsg = "Error: " + symbolName
 									+ " is not defined; zero used.";
 							instr.address = 0;
 
 						} else {
-							module.lies.remove(relevantSymbolName);
+							module.trulyUsedChecker.remove(symbolName);
 
-							relevantSymbol = this.symbolTable
-									.get(relevantSymbolName).item;
+							symbol = itemSymbolTable.item;
 
-							if (relevantSymbol == null) {
-								errorMsg = "Error: " + relevantSymbolName
+							if (symbol == null) {
+								errorMsg = "Error: " + symbolName
 										+ " is not defined; zero used.";
 								instr.address = 0;
 
 							} else {
-								relevantSymbol.usedSomewhere = true;
+								symbol.usedSomewhere = true;
 
 								// Get its absolute address
 								absoluteAddress = this.symbolTable
-										.get(relevantSymbolName).item.location;
+										.get(symbolName).item.location;
 							}
 						}
 					}
@@ -482,25 +454,26 @@ public class TwoPass {
 
 				if (instr.classification != 'I') {
 					// Immediate addresses are often not really addresses
-					// (just numbers)
 					if (absoluteAddress >= this.machineMemorySize) {
 						errorMsg = "Error: Absolute address exceeds machine size; zero used.";
 						absoluteAddress = 0;
 					}
 				}
 
+				// Add the formed word to the global memory map
 				word = instr.opcode * 1000 + absoluteAddress;
-				// Add the word to the global map
 				this.memoryMap
 						.add(new DescriptiveItem<Integer>(word, errorMsg));
 			}
 		}
 
-		// Print the results
+		// Print the results to the console
 		this.displayResults();
 	}
 
 	private void displayResults() {
+
+		/* Symbol Table */
 
 		System.out.println("Symbol Table");
 
@@ -512,13 +485,15 @@ public class TwoPass {
 			System.out.print(currEntry.item.symbol + "="
 					+ currEntry.item.location);
 
-			if (currEntry.errorMsg != null)
-				System.out.print(" " + currEntry.errorMsg);
+			if (currEntry.getErrorMsg() != null)
+				System.out.print(" " + currEntry.getErrorMsg());
 
 			System.out.println();
 		}
 
 		System.out.println();
+
+		/* Memory Map */
 
 		System.out.println("Memory Map");
 
@@ -529,8 +504,8 @@ public class TwoPass {
 			address = memoryEntry.item;
 			System.out.printf("%-3s %s", counter + ":", address);
 
-			if (memoryEntry.errorMsg != null)
-				System.out.print(" " + memoryEntry.errorMsg);
+			if (memoryEntry.getErrorMsg() != null)
+				System.out.print(" " + memoryEntry.getErrorMsg());
 
 			System.out.println();
 			counter++;
@@ -538,85 +513,34 @@ public class TwoPass {
 
 		System.out.println();
 
+		/* Warnings */
+
 		for (DescriptiveItem<Symbol> descSymbol : this.symbolTable.values())
 			if (!descSymbol.item.usedSomewhere)
 				System.out.println("Warning: " + descSymbol.item.symbol
 						+ " was defined in module "
 						+ descSymbol.item.moduleNumber + " but never used.");
 
-		counter = 1;
+		int moduleCounter = 1;
 		for (Module currModule : this.modules) {
 
-			for (String badSymbol : currModule.lies) {
+			for (String badSymbol : currModule.trulyUsedChecker) {
 				System.out
 						.println("Warning: In module "
-								+ counter
+								+ moduleCounter
 								+ " "
 								+ badSymbol
 								+ " appeared in the use list but was not actually used.");
 			}
 
-			counter++;
+			moduleCounter++;
 		}
-
-		/*
-		Symbol currSymbol;
-		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbolTable
-				.entrySet()) {
-
-			currSymbol = entry.getValue().item;
-
-			// System.out.println(currSymbol);
-
-			if (!currSymbol.usedSomewhere)
-				System.out.println("Warning: " + currSymbol.symbol
-						+ " was defined in module " + currSymbol.moduleNumber
-						+ " but never used.");
-
-			/*
-			 * else if (!currSymbol.usedSomewhere && currSymbol.usedInOwnList)
-			 * System.out .println("Warning: In module " +
-			 * currSymbol.moduleNumber + " " + currSymbol.symbol +
-			 * " appeared in the use list but was not actually used.");
-			 
-		}*/
-
-	}
-
-	public boolean interpretResults(int usedInput) throws FileNotFoundException {
-
-		Scanner scanner;
-
-		scanner = new Scanner(new File("programOutput.txt"));
-		String programOutput = scanner.useDelimiter("\\A").next();
-
-		scanner = new Scanner(new File("outputs/output-" + usedInput + ".txt"));
-		String expectedOutput = scanner.useDelimiter("\\A").next();
-
-		Pattern matcher = Pattern.compile("[\\d\\w]+");
-
-		Matcher po = matcher.matcher(programOutput);
-		Matcher eo = matcher.matcher(expectedOutput);
-
-		while (po.find() || eo.find()) {
-			try {
-				if (!po.group().equals(eo.group()))
-					return false;
-			} catch (IllegalStateException e) {
-				return false;
-			}
-		}
-
-		return true;
 
 	}
 
 	public static void main(String[] args) throws IOException {
 
-		// Get the file path from the command line
-
-		// Input number
-		int inputFile = 2;
+		int inputFile = 9;
 
 		String filePath;
 		if (args.length > 0)
@@ -624,22 +548,7 @@ public class TwoPass {
 		else
 			filePath = "inputs/input-" + inputFile + ".txt";
 
-		TwoPass tp = new TwoPass(filePath);
-
-		// for (int i = 6; i < 10; i++) {
-		// filePath = "inputs/input-" + i + ".txt";
-		// tp = new TwoPass(filePath);
-		// boolean res = tp.interpretResults(inputFile);
-		//
-		// System.out.println("\n");
-		// System.out.print("FILE ");
-		// if (res) {
-		// System.out.println(i + "- CORRECT");
-		// } else {
-		// System.out.println(i + "- NO MATCH");
-		// }
-		// System.out.println("\n");
-		// }
+		new TwoPass(filePath);
 
 	}
 
