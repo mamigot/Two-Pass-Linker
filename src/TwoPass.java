@@ -115,6 +115,8 @@ public class TwoPass {
 		public List<Symbol> uses;
 		public List<TextInstruction> textInstructions;
 
+		public List<String> lies;
+
 		public Module(int startLocation) {
 			this.startLocation = startLocation;
 
@@ -124,6 +126,8 @@ public class TwoPass {
 			this.definitions = new ArrayList<Symbol>();
 			this.uses = new ArrayList<Symbol>();
 			this.textInstructions = new ArrayList<TextInstruction>();
+
+			this.lies = new ArrayList<String>();
 		}
 
 		public void addDefinition(Symbol symbol) {
@@ -412,6 +416,12 @@ public class TwoPass {
 		Integer relativeAddress;
 		Integer absoluteAddress;
 		for (Module module : this.modules) {
+
+			// Add symbol Strings
+			for (Symbol use : module.uses)
+				if (this.symbolTable.containsKey(use.symbol))
+					module.lies.add(use.symbol);
+
 			for (TextInstruction instr : module.textInstructions) {
 
 				errorMsg = null;
@@ -439,13 +449,18 @@ public class TwoPass {
 						// System.out.println("problematic symbol: " +
 						// relevantSymbolName);
 
+						/*
+						 * OPTIMIZE THIS
+						 */
 						// Globally defined symbol
 						if (this.symbolTable.get(relevantSymbolName) == null) {
 							errorMsg = "Error: " + relevantSymbolName
 									+ " is not defined; zero used.";
 							instr.address = 0;
-							
+
 						} else {
+							module.lies.remove(relevantSymbolName);
+
 							relevantSymbol = this.symbolTable
 									.get(relevantSymbolName).item;
 
@@ -494,10 +509,6 @@ public class TwoPass {
 				.entrySet()) {
 			currEntry = entry.getValue();
 
-			// Don't print items without a location
-			if (currEntry.item.location == null)
-				continue;
-
 			System.out.print(currEntry.item.symbol + "="
 					+ currEntry.item.location);
 
@@ -527,6 +538,28 @@ public class TwoPass {
 
 		System.out.println();
 
+		for (DescriptiveItem<Symbol> descSymbol : this.symbolTable.values())
+			if (!descSymbol.item.usedSomewhere)
+				System.out.println("Warning: " + descSymbol.item.symbol
+						+ " was defined in module "
+						+ descSymbol.item.moduleNumber + " but never used.");
+
+		counter = 1;
+		for (Module currModule : this.modules) {
+
+			for (String badSymbol : currModule.lies) {
+				System.out
+						.println("Warning: In module "
+								+ counter
+								+ " "
+								+ badSymbol
+								+ " appeared in the use list but was not actually used.");
+			}
+
+			counter++;
+		}
+
+		/*
 		Symbol currSymbol;
 		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbolTable
 				.entrySet()) {
@@ -545,8 +578,8 @@ public class TwoPass {
 			 * System.out .println("Warning: In module " +
 			 * currSymbol.moduleNumber + " " + currSymbol.symbol +
 			 * " appeared in the use list but was not actually used.");
-			 */
-		}
+			 
+		}*/
 
 	}
 
@@ -583,7 +616,7 @@ public class TwoPass {
 		// Get the file path from the command line
 
 		// Input number
-		int inputFile = 5;
+		int inputFile = 2;
 
 		String filePath;
 		if (args.length > 0)
