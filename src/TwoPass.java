@@ -378,6 +378,8 @@ public class TwoPass {
 			for (Symbol useListSymbol : usedSymbols) {
 				if (currSymbol.equals(useListSymbol)) {
 					currSymbol.inModuleUseList = true;
+					System.out.println("HAHAHAHAHA");
+					System.exit(1);
 					break;
 				}
 			}
@@ -439,7 +441,7 @@ public class TwoPass {
 						// Map the address to the external symbol
 						relevantSymbol = module.uses.get(relativeAddress);
 						relevantSymbolName = relevantSymbol.symbol;
-						
+
 						// Mark the symbol as used in the instruction list
 						relevantSymbol.inInstructionList = true;
 
@@ -457,9 +459,11 @@ public class TwoPass {
 					}
 				}
 
-				if (absoluteAddress > this.machineMemorySize) {
-					errorMsg = "Error: Absolute address exceeds machine size; zero used.";
-					absoluteAddress = 0;
+				if (instr.classification == 'E' || instr.classification == 'E') {
+					if (absoluteAddress > this.machineMemorySize) {
+						errorMsg = "Error: Absolute address exceeds machine size; zero used.";
+						absoluteAddress = 0;
+					}
 				}
 
 				word = instr.opcode * 1000 + absoluteAddress;
@@ -477,14 +481,15 @@ public class TwoPass {
 
 		System.out.println("Symbol Table");
 
-		DescriptiveItem<Symbol> curr;
+		DescriptiveItem<Symbol> currEntry;
 		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbolTable
 				.entrySet()) {
-			curr = entry.getValue();
-			System.out.print(curr.item.symbol + "=" + curr.item.location);
+			currEntry = entry.getValue();
+			System.out.print(currEntry.item.symbol + "="
+					+ currEntry.item.location);
 
-			if (curr.errorMsg != null)
-				System.out.print(" " + curr.errorMsg);
+			if (currEntry.errorMsg != null)
+				System.out.print(" " + currEntry.errorMsg);
 
 			System.out.println();
 		}
@@ -509,6 +514,30 @@ public class TwoPass {
 
 		System.out.println();
 
+		Symbol currSymbol;
+		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbolTable
+				.entrySet()) {
+
+			currSymbol = entry.getValue().item;
+
+			if (currSymbol.inModuleUseList == false) {
+				System.out
+						.println("Warning: In module "
+								+ currSymbol.moduleNumber
+								+ " "
+								+ currSymbol.symbol
+								+ " appeared in the use list but was not actually used.");
+			} else {
+				// It's in a use list... but is it in the instructions?
+				if (currSymbol.inInstructionList == false) {
+					System.out.println("Warning: " + currSymbol.symbol
+							+ " was defined in module "
+							+ currSymbol.moduleNumber + " but never used.");
+				}
+			}
+
+		}
+
 	}
 
 	public static void main(String[] args) throws IOException {
@@ -518,7 +547,7 @@ public class TwoPass {
 		if (args.length > 0)
 			filePath = args[0];
 		else
-			filePath = "inputs/input-7.txt";
+			filePath = "inputs/input-3.txt";
 
 		new TwoPass(filePath);
 
