@@ -440,20 +440,27 @@ public class TwoPass {
 						// relevantSymbolName);
 
 						// Globally defined symbol
-						relevantSymbol = this.symbolTable
-								.get(relevantSymbolName).item;
-
-						if (relevantSymbol == null) {
+						if (this.symbolTable.get(relevantSymbolName) == null) {
 							errorMsg = "Error: " + relevantSymbolName
 									+ " is not defined; zero used.";
 							instr.address = 0;
-
+							
 						} else {
-							relevantSymbol.usedSomewhere = true;
+							relevantSymbol = this.symbolTable
+									.get(relevantSymbolName).item;
 
-							// Get its absolute address
-							absoluteAddress = this.symbolTable
-									.get(relevantSymbolName).item.location;
+							if (relevantSymbol == null) {
+								errorMsg = "Error: " + relevantSymbolName
+										+ " is not defined; zero used.";
+								instr.address = 0;
+
+							} else {
+								relevantSymbol.usedSomewhere = true;
+
+								// Get its absolute address
+								absoluteAddress = this.symbolTable
+										.get(relevantSymbolName).item.location;
+							}
 						}
 					}
 				}
@@ -486,6 +493,11 @@ public class TwoPass {
 		for (Entry<String, DescriptiveItem<Symbol>> entry : this.symbolTable
 				.entrySet()) {
 			currEntry = entry.getValue();
+
+			// Don't print items without a location
+			if (currEntry.item.location == null)
+				continue;
+
 			System.out.print(currEntry.item.symbol + "="
 					+ currEntry.item.location);
 
@@ -571,7 +583,7 @@ public class TwoPass {
 		// Get the file path from the command line
 
 		// Input number
-		int inputFile = 1;
+		int inputFile = 5;
 
 		String filePath;
 		if (args.length > 0)
@@ -581,20 +593,20 @@ public class TwoPass {
 
 		TwoPass tp = new TwoPass(filePath);
 
-//		for (int i = 6; i < 10; i++) {
-//			filePath = "inputs/input-" + i + ".txt";
-//			tp = new TwoPass(filePath);
-//			boolean res = tp.interpretResults(inputFile);
-//
-//			System.out.println("\n");
-//			System.out.print("FILE ");
-//			if (res) {
-//				System.out.println(i + "- CORRECT");
-//			} else {
-//				System.out.println(i + "- NO MATCH");
-//			}
-//			System.out.println("\n");
-//		}
+		// for (int i = 6; i < 10; i++) {
+		// filePath = "inputs/input-" + i + ".txt";
+		// tp = new TwoPass(filePath);
+		// boolean res = tp.interpretResults(inputFile);
+		//
+		// System.out.println("\n");
+		// System.out.print("FILE ");
+		// if (res) {
+		// System.out.println(i + "- CORRECT");
+		// } else {
+		// System.out.println(i + "- NO MATCH");
+		// }
+		// System.out.println("\n");
+		// }
 
 	}
 
