@@ -19,6 +19,9 @@ import java.util.regex.Pattern;
  * <p>
  * The TwoPass class contains several inner class and an enumeration to improve
  * readability and maintain each module's components sorted.
+ * 
+ * @author Miguel Amigot
+ * Operating Systems, Fall 2014
  */
 public class TwoPass {
 
@@ -344,7 +347,10 @@ public class TwoPass {
 	}
 
 	/**
-	 * 
+	 * Called each time a new module is recognized by the parser of the input
+	 * file. Creates a new instance whose reference is saved onto a temporary
+	 * variable within the class to allow other parts of the module to extend
+	 * it, and adds it to the global list.
 	 */
 	private void initializeModule() {
 
@@ -364,6 +370,10 @@ public class TwoPass {
 
 	}
 
+	/**
+	 * Gets the last module (the most relevant) and calls the function that sets
+	 * the symbols' absolute values/locations.
+	 */
 	private void analyzeLastModule() {
 
 		// Assuming that modules have been analyzed (that this isn't the
@@ -379,6 +389,11 @@ public class TwoPass {
 
 	}
 
+	/**
+	 * Provided an element of a definition (which type is determined by the
+	 * DataKind parameter), either builds up the temporary variable or, once
+	 * it's built, it adds it to the module's list of definitions.
+	 */
 	private void processDefinition(String element, DataKind partType) {
 
 		if (partType == DataKind.SYMBOL) {
@@ -397,12 +412,21 @@ public class TwoPass {
 
 	}
 
+	/**
+	 * Considering that a use is represented by a single entity, it just needs
+	 * to be added to the relevant module's list.
+	 */
 	private void processUse(String element) {
 
 		this.currModule.addUse(new Symbol(element));
 
 	}
 
+	/**
+	 * Provided an element of an instruction (which type is determined by the
+	 * DataKind parameter), either builds up the temporary variable or, once
+	 * it's built, it adds it to the module's list of instructions.
+	 */
 	private void processInstruction(String element, DataKind partType) {
 
 		if (partType == DataKind.TYPE) {
@@ -424,6 +448,13 @@ public class TwoPass {
 
 	}
 
+	/**
+	 * Called after each module is completed to add the defined symbols to the
+	 * global structure after calculating their absolute addresses.
+	 * <p>
+	 * Also performs error detection and checks for arbitrary limits, logging
+	 * results onto the relevant errorMsg variable.
+	 */
 	private void setAbsoluteSymbolValues(Module module) {
 
 		List<Symbol> definedSymbols = module.definitions;
@@ -457,6 +488,15 @@ public class TwoPass {
 
 	}
 
+	/**
+	 * Performs the second pass of the linking process, which uses the base
+	 * addresses and the symbol table computed in pass one to generate the
+	 * actual output by relocating relative addresses and resolving external
+	 * references.
+	 * <p>
+	 * Also performs error detection and checks for arbitrary limits, logging
+	 * results onto the relevant errorMsg variable.
+	 */
 	private void performSecondPass() {
 
 		DescriptiveItem<Symbol> itemSymbolTable;
@@ -475,6 +515,9 @@ public class TwoPass {
 				if (this.definedSymbolTable.containsKey(use.symbol))
 					module.unusedInTextSymbols.add(use.symbol);
 
+			// Essentially, the only instructions that need to be modified are
+			// the Relative and the External (unless the resulting absolute
+			// address exceeds the given value of the machine's maximum size).
 			for (TextInstruction instr : module.textInstructions) {
 
 				errorMsg = null;
@@ -482,6 +525,8 @@ public class TwoPass {
 				absoluteAddress = instr.address;
 
 				if (instr.classification == 'R') {
+					// Adapts the relative instruction to an absolute by looking
+					// at the relevant module's location.
 					absoluteAddress = relativeAddress + module.startLocation;
 
 					if (relativeAddress > module.length) {
@@ -552,6 +597,12 @@ public class TwoPass {
 		this.displayResults();
 	}
 
+	/**
+	 * Displays the results into the following sections: "Symbol Table",
+	 * "Memory Map" and warnings (note that an output may feature no warnings at
+	 * all). The symbol table and the memory map may feature logged error
+	 * detection results alongside relevant definitions/instructions.
+	 */
 	private void displayResults() {
 
 		/* Symbol Table */
