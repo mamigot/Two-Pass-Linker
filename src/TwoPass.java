@@ -9,9 +9,29 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-// scp -r TwoPassLinker/ ma2786@i5.nyu.edu:
+/**
+ * Two-Pass Linker Implementation
+ * <p>
+ * The first pass finds the base address of each module and produces the symbol
+ * table. The second uses the base addresses and the symbol table computed in
+ * pass one to generate the actual output by relocating relative addresses and
+ * resolving external references.
+ * <p>
+ * The TwoPass class contains several inner class and an enumeration to improve
+ * readability and maintain each module's components sorted.
+ */
 public class TwoPass {
 
+	/**
+	 * Knowing that the input file is split into modules which are split into
+	 * DEFINITIONS, USES and INSTRUCTIONS, it provides a couple of functions to
+	 * determine their order.
+	 * <p>
+	 * Additionally, it contains the sub-categories of each component to allow
+	 * the user of this class to understand how the data is being interpreted as
+	 * it is read (as opposed to cryptic boolean flags which convey no real
+	 * information in a clear way).
+	 */
 	private enum DataKind {
 		// Items found in module
 		DEFINITIONS, USES, INSTRUCTIONS,
@@ -38,13 +58,22 @@ public class TwoPass {
 		}
 	}
 
+	/**
+	 * Contains a series of instance variables which allow different stages of
+	 * the program to identify and use the symbol according to a number of
+	 * criteria.
+	 */
 	private class Symbol {
+		// Representation of the symbol as it is being read (characters,
+		// integers...)
 		private String symbol;
+		// Location (relative as it is read but absolute after the first pass)
 		private Integer location;
 
-		// Starting from 1
+		// Specifies the module in which its definition is contained
+		// (starting from 1)
 		private Integer moduleNumber;
-		// True if it appears on the text
+		// True if it appears anywhere on the text
 		private boolean usedSomewhere;
 
 		public Symbol(String symbol, Integer location) {
@@ -67,6 +96,15 @@ public class TwoPass {
 		}
 	}
 
+	/**
+	 * Represents a single text instruction in the program, which is composed of
+	 * a classification character (detailing whether it's Immediate, Absolute,
+	 * Relative or External), an opcode (first character of the four-digit
+	 * number/word) and an address (remaining three characters of the word).
+	 * <p>
+	 * Instructions are structured in the following format:
+	 * "R 1004 I 5678 E 2000 R 8002 E 7001".
+	 */
 	private class TextInstruction {
 		private Character classification;
 		private Integer opcode;
@@ -88,7 +126,13 @@ public class TwoPass {
 		}
 	}
 
+	/**
+	 * Represents a single module in the input file, which is composed of a
+	 * definition list, a use-list and an instruction list.
+	 */
 	private class Module {
+		// Parameters used to determine the absolute locations of the relevant
+		// elements (instructions as well as defined symbols)
 		private int startLocation;
 		private int endLocation;
 		private int length;
@@ -123,6 +167,8 @@ public class TwoPass {
 		public void addInstruction(TextInstruction instruction) {
 			this.textInstructions.add(instruction);
 
+			// Absolute locations/addresses are determined by the number of
+			// instructions in the program
 			this.length++;
 			this.endLocation = this.startLocation + this.length - 1;
 		}
@@ -152,6 +198,10 @@ public class TwoPass {
 		}
 	}
 
+	/**
+	 * Generic class which allows an object such as a Symbol or a Module to be
+	 * linked to a relevant errorMsg.
+	 */
 	private class DescriptiveItem<T> {
 		private T item;
 		private String errorMsg;
@@ -170,8 +220,13 @@ public class TwoPass {
 		}
 	}
 
+	// Given memory size of the target machine
 	private int machineMemorySize = 600;
 
+	// Global structures designed to contain the data
+	// (Future improvement: decrease the memory consumption of the program by
+	// making it proportional to the size
+	// of the latest module, not to all modules).
 	private ArrayList<Module> modules = new ArrayList<Module>();
 	private TreeMap<String, DescriptiveItem<Symbol>> definedSymbolTable = new TreeMap<String, DescriptiveItem<Symbol>>();
 	private ArrayList<DescriptiveItem<Integer>> memoryMap = new ArrayList<DescriptiveItem<Integer>>();
@@ -183,6 +238,21 @@ public class TwoPass {
 	private TextInstruction tempInstruction;
 	private Module currModule;
 
+	/**
+	 * Parses the data from the provided set of modules into definitions, uses
+	 * and instructions using a series of methods devoted to the first pass of
+	 * the linking process. Consequently, the second pass is performed.
+	 * <p>
+	 * In order to read the data, knowledge about the format of the file is used
+	 * to, for example, expect two elements per definition (a symbol and a
+	 * relative location).
+	 * 
+	 * @param inputFilePath
+	 *            Specifies the path to the relevant input file.
+	 * @throws FileNotFoundException
+	 *             If the file-path that was provided did not lead to a text
+	 *             file.
+	 */
 	public TwoPass(String inputFilePath) throws FileNotFoundException {
 		// Save all of the file content into a variable
 		Scanner scanner = new Scanner(new File(inputFilePath));
@@ -273,6 +343,9 @@ public class TwoPass {
 		this.performSecondPass();
 	}
 
+	/**
+	 * 
+	 */
 	private void initializeModule() {
 
 		// Get its starting location on memory, which is equivalent to the final
@@ -529,7 +602,7 @@ public class TwoPass {
 				System.out.println();
 				thereAreWarnings = true;
 			}
-			
+
 			if (!descSymbol.item.usedSomewhere)
 				System.out.println("Warning: " + descSymbol.item.symbol
 						+ " was defined in module "
@@ -559,8 +632,9 @@ public class TwoPass {
 		if (args.length > 0)
 			filePath = args[0];
 		else
-			throw new IllegalArgumentException("\nExpected path to input series of object modules.\nFor example, \n\njava TwoPass input-5.txt\n");
-			
+			throw new IllegalArgumentException(
+					"\nExpected path to input series of object modules.\nFor example, \n\njava TwoPass input-5.txt\n");
+
 		// int inputFile = 2;
 		// filePath = "inputs/input-" + inputFile + ".txt";
 
